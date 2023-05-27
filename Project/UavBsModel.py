@@ -2,13 +2,13 @@ import math
 
 
 class UavBsModel:
-    def __init__(self, height, width):
+    def __init__(self, length, width):
         self.uavs = []
-        self.ground = Ground(height, width)
+        self.ground = Ground(length, width)
 
 
 class Uav:
-    def __init__(self, position, height=100, theta=math.pi / 3, radius=None):
+    def __init__(self, position, height, theta=math.pi / 3, radius=None):
         self.position = position
         self.height = height
         self.theta = theta
@@ -22,8 +22,8 @@ class Uav:
 
 
 class Ground:
-    def __init__(self, height, width):
-        self.height = height
+    def __init__(self, length, width):
+        self.length = length
         self.width = width
 
 

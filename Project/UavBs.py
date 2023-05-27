@@ -6,7 +6,7 @@ import math
 class UavBs:
     def __init__(self):
         # custom parameters
-        ground_height = 100 * math.sqrt(3) * 2 + 100
+        ground_length = 100 * math.sqrt(3) * 2 + 100
         ground_width = 300
         uav_arrange = (3, 3)
         uav_distance = 100 * math.sqrt(3)
@@ -24,7 +24,7 @@ class UavBs:
         # 輸入 每一台無人機與地面的使用者
 
         # model
-        self.model = UavBsModel(ground_height, ground_width)
+        self.model = UavBsModel(ground_length, ground_width)
         for i in range(uav_arrange[0]):
             for j in range(uav_arrange[1]):
                 position_x_offset = uav_distance / 2 if (i % 2 == 1) else 0  # shift right
@@ -33,7 +33,7 @@ class UavBs:
                         height=uav_height, theta=uav_theta))
 
         # view
-        self.motion = Motion(ground_height=self.model.ground.height, ground_width=self.model.ground.width)
+        self.motion = Motion(ground_length=self.model.ground.length, ground_width=self.model.ground.width)
         for uav_model in self.model.uavs:
             self.motion.add_uav(uav_model.position, uav_model.height, uav_model.radius)
 
@@ -73,31 +73,45 @@ class UavBs:
         elif self.replacing_state == 0:  # init state
             self.model.uavs.append(
                 Uav(position=vec(max(map(lambda x: x.position.x, self.model.uavs)) + 2 * (self.model.uavs[1].position.x - self.model.uavs[0].position.x),
-                    self.model.uavs[len(self.model.uavs) // 2].position.y,
-                    self.model.uavs[0].position.z),
-                    height=self.model.uavs[0].height - 20, theta=self.model.uavs[0].theta))
+                                 0,
+                                 self.model.uavs[len(self.model.uavs) // 2].position.z),
+                    height=self.model.uavs[0].height - 20,
+                    theta=self.model.uavs[0].theta))
             self.motion.add_uav(self.model.uavs[-1].position, self.model.uavs[-1].height, self.model.uavs[-1].radius)
             self.replacing_state = 1
 
         elif self.replacing_state == 1:  # moving state
-            target_uav = self.model.uavs[len(self.model.uavs) // 2]
-            uav = self.model.uavs[-1]
-            uav.position.x -= min(10, uav.position.x - target_uav.position.x)
-            if uav.position.x == target_uav.position.x:
+            target_uav = self.model.uavs[(len(self.model.uavs) - 1) // 2]
+            new_uav = self.model.uavs[-1]
+            new_uav.position.x -= min(0.25, new_uav.position.x - target_uav.position.x)
+            if new_uav.position.x == target_uav.position.x:
                 self.replacing_state = 2
 
         elif self.replacing_state == 2:  # swapping state
-            self.replacing_state = 2
+            target_uav = self.model.uavs[(len(self.model.uavs) - 1) // 2]
+            target_height = self.model.uavs[0].height
+            new_uav = self.model.uavs[-1]
+            dy = min(0.1, target_height - new_uav.height)
+            new_uav.height += dy
+            new_uav.update_radius()
+            target_uav.height += dy
+            target_uav.update_radius()
+            self.update_height()
+            if isclose(new_uav.height, target_height):
+                self.replacing_state = 3
 
         else:  # finalize
+            # del self.model.uavs[(len(self.model.uavs) - 1) // 2]
+            # self.motion.uavs[(len(self.model.uavs) - 1) // 2].visible = False
+            # del self.motion.uavs[(len(self.model.uavs) - 1) // 2]
             self.replacing_state = 0
             self.replacing = False
 
     def update_pos(self):
         for uav, uav_model in zip(self.motion.uavs, self.model.uavs):
-            uav.pos = vec(uav_model.position.x - self.model.ground.height // 2,
-                          uav_model.position.y - self.model.ground.width // 2,
-                          uav_model.position.z)
+            uav.pos = vec(uav_model.position.x - self.model.ground.length // 2,
+                          uav_model.position.y,
+                          uav_model.position.z - self.model.ground.width // 2)
 
     def update_height(self):
         for uav, uav_model in zip(self.motion.uavs, self.model.uavs):
