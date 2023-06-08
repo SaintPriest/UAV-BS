@@ -10,10 +10,14 @@ class Motion:
         self.scene.caption = "\n"
         self.ground = box(canvas=self.scene, pos=vec(0, 0, 0), size=vec(ground_length, 1, ground_width), color=color.blue)
         self.uavs = []
+        self.ue = []
 
     def add_uav(self, position, height, radius):
         self.uavs.append(cone(canvas=self.scene, pos=position, axis=vec(0, height, 0),
                               radius=radius, opacity=0.4))
+
+    def add_ue(self, position):
+        self.ue.append(cylinder(canvas=self.scene, pos=position, axis=vec(0, 0.2, 0), opacity=0.7))
 
 
 if __name__ == '__main__':

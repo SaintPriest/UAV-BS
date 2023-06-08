@@ -1,10 +1,16 @@
 from vpython import *
+
+from Analysis import Analysis
 from UavBsModel import UavBsModel, Uav
 from Motion import Motion
 import math
+import numpy as np;
+
 
 class UavBs:
     def __init__(self):
+        self.time = 0
+
         # custom parameters
         ground_length = 100 * math.sqrt(3) * 2 + 100
         ground_width = 300
@@ -12,6 +18,9 @@ class UavBs:
         uav_distance = 100 * math.sqrt(3)
         uav_height = 120
         uav_theta = math.atan(1.2)
+
+        # debug
+        self.disable_uav_5 = True
 
         # states
         self.replacing = False
@@ -36,6 +45,14 @@ class UavBs:
         self.motion = Motion(ground_length=self.model.ground.length, ground_width=self.model.ground.width)
         for uav_model in self.model.uavs:
             self.motion.add_uav(uav_model.position, uav_model.height, uav_model.radius)
+        for ue_x, ue_y in zip(self.model.ue_x, self.model.ue_y):
+            self.motion.add_ue(position=vec(ue_x, 1, ue_y))
+
+        if self.disable_uav_5:
+            self.motion.uavs[5].visible = False
+
+        # analysis
+        self.analysis = Analysis()
 
         # UI
         def set_all_height(vslider):
@@ -70,9 +87,10 @@ class UavBs:
         if not self.replacing:
             return
 
-        elif self.replacing_state == 0:  # init state
+        if self.replacing_state == 0:  # init state
             self.model.uavs.append(
-                Uav(position=vec(max(map(lambda x: x.position.x, self.model.uavs)) + 2 * (self.model.uavs[1].position.x - self.model.uavs[0].position.x),
+                Uav(position=vec(max(map(lambda x: x.position.x, self.model.uavs)) + 2 * (
+                        self.model.uavs[1].position.x - self.model.uavs[0].position.x),
                                  0,
                                  self.model.uavs[len(self.model.uavs) // 2].position.z),
                     height=self.model.uavs[0].height - 20,
@@ -84,7 +102,7 @@ class UavBs:
             target_uav = self.model.uavs[(len(self.model.uavs) - 1) // 2]
             new_uav = self.model.uavs[-1]
             new_uav.position.x -= min(0.25, new_uav.position.x - target_uav.position.x)
-            if new_uav.position.x == target_uav.position.x:
+            if isclose(new_uav.position.x, target_uav.position.x):
                 self.replacing_state = 2
 
         elif self.replacing_state == 2:  # swapping state
@@ -100,10 +118,22 @@ class UavBs:
             if isclose(new_uav.height, target_height):
                 self.replacing_state = 3
 
+        elif self.replacing_state == 3:
+            target_x = max(map(lambda x: x.position.x, self.model.uavs[(len(self.model.uavs) - 1) // 2 + 1:])) + \
+                       self.model.uavs[1].position.x - self.model.uavs[0].position.x
+            old_uav = self.model.uavs[(len(self.model.uavs) - 1) // 2]
+            old_uav.position.x += min(0.25, target_x - old_uav.position.x)
+            if isclose(old_uav.position.x, target_x):
+                self.replacing_state = 4
+
         else:  # finalize
-            # del self.model.uavs[(len(self.model.uavs) - 1) // 2]
-            # self.motion.uavs[(len(self.model.uavs) - 1) // 2].visible = False
-            # del self.motion.uavs[(len(self.model.uavs) - 1) // 2]
+            self.model.uavs[(len(self.model.uavs) - 1) // 2], self.model.uavs[-1] = self.model.uavs[-1], \
+                self.model.uavs[(len(self.model.uavs) - 1) // 2]
+            self.motion.uavs[(len(self.motion.uavs) - 1) // 2], self.motion.uavs[-1] = self.motion.uavs[-1], \
+                self.motion.uavs[(len(self.motion.uavs) - 1) // 2]
+            del self.model.uavs[-1]
+            self.motion.uavs[-1].visible = False
+            del self.motion.uavs[-1]
             self.replacing_state = 0
             self.replacing = False
 
@@ -118,6 +148,24 @@ class UavBs:
             uav.axis = vec(0, uav_model.height, 0)
             uav.radius = uav_model.radius
 
+    def update_analysis(self):
+        self.time += 1
+        coverage = 0
+        if self.time % 40 != 0:
+            return
+
+        for ue_x, ue_y in zip(self.model.ue_x, self.model.ue_y):
+            x = ue_x + (self.model.ground.length / 2)
+            y = ue_y + (self.model.ground.width / 2)
+            for uav in self.model.uavs:
+                if self.disable_uav_5:
+                    if uav == self.model.uavs[5]:
+                        continue
+                if np.linalg.norm((uav.position.x - x, uav.position.z - y)) <= uav.radius:
+                    coverage += 1
+                    break
+        self.analysis.add_coverage(self.time / 1000, coverage / len(self.model.ue_x))
+
 
 if __name__ == '__main__':
     bs = UavBs()
@@ -125,3 +173,4 @@ if __name__ == '__main__':
         rate(1000)
         bs.update_replacing()
         bs.update_pos()
+        bs.update_analysis()
