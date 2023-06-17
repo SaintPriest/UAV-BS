@@ -1,4 +1,4 @@
-from vpython import graph, gcurve, color
+from vpython import graph, gcurve, color, vector
 import math
 import numpy as np
 
@@ -10,17 +10,25 @@ class Analysis:
         coverage_g = graph(title="<i>t</i>-<i>coverage</i> plot", width=600, height=450, x=0, y=400,
                    xtitle="<i>t</i> (s)", ytitle="<i>coverage</i> (%)", fast=False)
         self.coverage_gc = gcurve(graph=coverage_g, color=color.red)
-        speed_g = graph(title="<i>t</i>-<i>speed</i> plot", width=600, height=450, x=0, y=400,
+        self.speed_g = graph(title="<i>t</i>-<i>speed</i> plot", width=600, height=450, x=650, y=900,
                            xtitle="<i>t</i> (s)", ytitle="<i>speed</i> (bps)", fast=False)
         self.speed_gc = []
+        colors = [color.blue, color.cyan, color.green, color.orange, color.magenta, color.purple,
+                  color.yellow, color.black, vector(0.8,0.4,0.6), color.red] * 5
         for i in range(len(self.uavs)):
-            self.speed_gc.append(gcurve(graph=speed_g))
+            self.speed_gc.append(gcurve(graph=self.speed_g, color=colors[i]))
 
     def add_coverage(self, x, y):
         self.coverage_gc.plot(pos=(x, y))
 
     def add_speed(self, i, x, y):
         self.speed_gc[i].plot(pos=(x, y))
+
+    def add_speed_gc(self):
+        self.speed_gc.append(gcurve(graph=self.speed_g, color=color.red))
+
+    def del_speed_gc(self):
+        del self.speed_gc[-1]
 
     def h_(self, j):
         return self.uavs[j].height

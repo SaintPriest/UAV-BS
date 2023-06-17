@@ -19,7 +19,7 @@ class UavBs:
         uav_theta = math.atan(1.2)
 
         # debug
-        self.disable_uav_5 = True
+        self.disable_uav_5 = False
 
         # states
         self.replacing = False
@@ -96,6 +96,7 @@ class UavBs:
                     height=self.model.uavs[0].height - 20,
                     theta=self.model.uavs[0].theta))
             self.motion.add_uav(self.model.uavs[-1].position, self.model.uavs[-1].height, self.model.uavs[-1].radius)
+            self.analysis.add_speed_gc()
             self.replacing_state = 1
 
         elif self.replacing_state == 1:  # moving state
@@ -127,13 +128,16 @@ class UavBs:
                 self.replacing_state = 4
 
         else:  # finalize
-            self.model.uavs[(len(self.model.uavs) - 1) // 2], self.model.uavs[-1] = self.model.uavs[-1], \
-                self.model.uavs[(len(self.model.uavs) - 1) // 2]
-            self.motion.uavs[(len(self.motion.uavs) - 1) // 2], self.motion.uavs[-1] = self.motion.uavs[-1], \
-                self.motion.uavs[(len(self.motion.uavs) - 1) // 2]
+            self.model.uavs[(len(self.model.uavs) - 1) // 2], self.model.uavs[-1] = \
+                self.model.uavs[-1], self.model.uavs[(len(self.model.uavs) - 1) // 2]
+            self.motion.uavs[(len(self.motion.uavs) - 1) // 2], self.motion.uavs[-1] = \
+                self.motion.uavs[-1], self.motion.uavs[(len(self.motion.uavs) - 1) // 2]
+            self.analysis.speed_gc[(len(self.analysis.speed_gc) - 1) // 2], self.analysis.speed_gc[-1] = \
+                self.analysis.speed_gc[-1], self.analysis.speed_gc[(len(self.analysis.speed_gc) - 1) // 2]
             del self.model.uavs[-1]
             self.motion.uavs[-1].visible = False
             del self.motion.uavs[-1]
+            self.analysis.del_speed_gc()
             self.replacing_state = 0
             self.replacing = False
 
@@ -151,7 +155,7 @@ class UavBs:
     def update_analysis(self):
         self.time += 1
         coverage = 0
-        if self.time % 40 != 0:
+        if self.time % 80 != 0:
             return
 
         for ue in self.model.ues:
