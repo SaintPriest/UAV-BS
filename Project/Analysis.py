@@ -10,9 +10,17 @@ class Analysis:
         coverage_g = graph(title="<i>t</i>-<i>coverage</i> plot", width=600, height=450, x=0, y=400,
                    xtitle="<i>t</i> (s)", ytitle="<i>coverage</i> (%)", fast=False)
         self.coverage_gc = gcurve(graph=coverage_g, color=color.red)
+        speed_g = graph(title="<i>t</i>-<i>speed</i> plot", width=600, height=450, x=0, y=400,
+                           xtitle="<i>t</i> (s)", ytitle="<i>speed</i> (bps)", fast=False)
+        self.speed_gc = []
+        for i in range(len(self.uavs)):
+            self.speed_gc.append(gcurve(graph=speed_g))
 
     def add_coverage(self, x, y):
         self.coverage_gc.plot(pos=(x, y))
+
+    def add_speed(self, i, x, y):
+        self.speed_gc[i].plot(pos=(x, y))
 
     def h_(self, j):
         return self.uavs[j].height
@@ -60,4 +68,13 @@ class Analysis:
     def cover(self, ue, uav):
         return self.r(uav.position, ue) <= uav.radius
 
+    def c_(self, i, j):
+        B = 2 * (10 ** 7)
+        return B * math.log(1 + self.SINR_(i, j), 2)
 
+    def C_(self, j):
+        c_acc = 0
+        for i in range(len(self.ues)):
+            if self.cover(self.ues[i], self.uavs[j]):
+                c_acc += self.c_(i, j)
+        return c_acc

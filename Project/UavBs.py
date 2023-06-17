@@ -164,6 +164,9 @@ class UavBs:
                     break
         self.analysis.add_coverage(self.time / 1000, coverage * 100 / len(self.model.ues))
 
+        for j in range(len(self.model.uavs)): # 數值過大，是否取log
+            self.analysis.add_speed(j, self.time / 1000, self.analysis.C_(j))
+
         # for i in range(3):
         #     for j in range(len(self.model.uavs)):
         #         print(round(self.analysis.L(self.analysis.h_(j), self.analysis.r_(i, j)), 2), end=' ')
