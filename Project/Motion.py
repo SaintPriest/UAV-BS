@@ -8,7 +8,8 @@ class Motion:
         self.scene = canvas(title="3D Motion\n\n", width=800, height=400, x=0, y=0,
                             center=vec(0, 5, 0), background=vec(0, 0.6, 0.6))
         self.scene.caption = "\n"
-        self.ground = box(canvas=self.scene, pos=vec(0, 0, 0), size=vec(ground_length, 1, ground_width), color=color.blue)
+        self.ground = box(canvas=self.scene, pos=vec(0, 0, 0), size=vec(ground_length, 1, ground_width),
+                          color=color.white)
         self.uavs = []
         self.ue = []
 
@@ -17,7 +18,7 @@ class Motion:
                               radius=radius, opacity=0.4))
 
     def add_ue(self, position):
-        self.ue.append(cylinder(canvas=self.scene, pos=position, axis=vec(0, 0.2, 0), opacity=0.7))
+        self.ue.append(cylinder(canvas=self.scene, pos=position, axis=vec(0, 1.2, 0), opacity=0.7, color=color.black))
 
 
 if __name__ == '__main__':

@@ -4,7 +4,6 @@ from Analysis import Analysis
 from UavBsModel import UavBsModel, Uav
 from Motion import Motion
 import math
-import numpy as np;
 
 
 class UavBs:
@@ -45,14 +44,15 @@ class UavBs:
         self.motion = Motion(ground_length=self.model.ground.length, ground_width=self.model.ground.width)
         for uav_model in self.model.uavs:
             self.motion.add_uav(uav_model.position, uav_model.height, uav_model.radius)
-        for ue_x, ue_y in zip(self.model.ue_x, self.model.ue_y):
-            self.motion.add_ue(position=vec(ue_x, 1, ue_y))
+        for ue in self.model.ues:
+            self.motion.add_ue(position=vec(ue.x - self.model.ground.length / 2,
+                                            ue.y, ue.z - self.model.ground.width / 2))
 
         if self.disable_uav_5:
             self.motion.uavs[5].visible = False
 
         # analysis
-        self.analysis = Analysis()
+        self.analysis = Analysis(self.model.uavs, self.model.ues)
 
         # UI
         def set_all_height(vslider):
@@ -154,17 +154,24 @@ class UavBs:
         if self.time % 40 != 0:
             return
 
-        for ue_x, ue_y in zip(self.model.ue_x, self.model.ue_y):
-            x = ue_x + (self.model.ground.length / 2)
-            y = ue_y + (self.model.ground.width / 2)
+        for ue in self.model.ues:
             for uav in self.model.uavs:
                 if self.disable_uav_5:
                     if uav == self.model.uavs[5]:
                         continue
-                if np.linalg.norm((uav.position.x - x, uav.position.z - y)) <= uav.radius:
+                if self.analysis.cover(ue, uav):
                     coverage += 1
                     break
-        self.analysis.add_coverage(self.time / 1000, coverage / len(self.model.ue_x))
+        self.analysis.add_coverage(self.time / 1000, coverage * 100 / len(self.model.ues))
+
+        # for i in range(3):
+        #     for j in range(len(self.model.uavs)):
+        #         print(round(self.analysis.L(self.analysis.h_(j), self.analysis.r_(i, j)), 2), end=' ')
+        # print('-')
+        # for i in range(3):
+        #     for j in range(len(self.model.uavs)):
+        #         print(self.analysis.SINR_(i, j), end=' ')
+        # print('---')
 
 
 if __name__ == '__main__':

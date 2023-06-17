@@ -1,10 +1,11 @@
 import math
 import numpy as np;
-
+from vpython import vec
 
 class UavBsModel:
     def __init__(self, length, width):
         self.uavs = []
+        self.ues = []
         self.ground = Ground(length, width)
         # Simulation window parameters
         r = 1  # radius of disk
@@ -25,8 +26,11 @@ class UavBsModel:
         yy = rho * np.sin(theta)
 
         # Shift centre of disk to (xx0,yy0)
-        self.ue_x = (xx + xx0) * (length / 2)
-        self.ue_y = (yy + yy0) * (width / 2)
+        ue_xx = (xx + xx0) * (length / 2) + self.ground.length / 2
+        ue_yy = (yy + yy0) * (width / 2) + self.ground.width / 2
+
+        for ue_x, ue_y in zip(ue_xx, ue_yy):
+            self.ues.append(vec(ue_x, 0, ue_y))
 
 
 class Uav:
