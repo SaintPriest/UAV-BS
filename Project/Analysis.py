@@ -4,22 +4,31 @@ import numpy as np
 
 
 class Analysis:
-    def __init__(self, uavs, ues):
+    def __init__(self, uavs, ues, all_uav_curves):
         self.uavs = uavs
         self.ues = ues
+        self.total_speed_g = graph(title="<i>t</i>-<i>speed</i> plot", width=600, height=450, x=0, y=400,
+                                   xtitle="<i>t</i> (s)", ytitle="<i>speed</i> (Gbps)", fast=True)
+        self.total_speed_gc = gcurve(graph=self.total_speed_g, color=color.red)
+
+        if all_uav_curves:
+            self.speed_g = graph(title="<i>t</i>-<i>speed</i> plot", width=600, height=450, x=0, y=400,
+                               xtitle="<i>t</i> (s)", ytitle="<i>total speed</i> (Gbps)", fast=True)
+            self.speed_gc = []
+            colors = [color.blue, color.cyan, color.green, color.orange, color.magenta, color.purple,
+                      color.yellow, color.black, vector(0.8,0.4,0.6), color.red] * 5
+            for i in range(len(self.uavs)):
+                self.speed_gc.append(gcurve(graph=self.speed_g, color=colors[i]))
+
         coverage_g = graph(title="<i>t</i>-<i>coverage</i> plot", width=600, height=450, x=0, y=400,
-                   xtitle="<i>t</i> (s)", ytitle="<i>coverage</i> (%)", fast=False)
-        self.coverage_gc = gcurve(graph=coverage_g, color=color.red)
-        self.speed_g = graph(title="<i>t</i>-<i>speed</i> plot", width=600, height=450, x=650, y=900,
-                           xtitle="<i>t</i> (s)", ytitle="<i>speed</i> (bps)", fast=False)
-        self.speed_gc = []
-        colors = [color.blue, color.cyan, color.green, color.orange, color.magenta, color.purple,
-                  color.yellow, color.black, vector(0.8,0.4,0.6), color.red] * 5
-        for i in range(len(self.uavs)):
-            self.speed_gc.append(gcurve(graph=self.speed_g, color=colors[i]))
+                           xtitle="<i>t</i> (s)", ytitle="<i>coverage</i> (%)", fast=True)
+        self.coverage_gc = gcurve(graph=coverage_g, color=color.blue)
 
     def add_coverage(self, x, y):
         self.coverage_gc.plot(pos=(x, y))
+
+    def add_total_speed(self, x, y):
+        self.total_speed_gc.plot(pos=(x, y))
 
     def add_speed(self, i, x, y):
         self.speed_gc[i].plot(pos=(x, y))

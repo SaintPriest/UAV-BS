@@ -1,36 +1,35 @@
 import math
-import numpy as np;
+import time
+import numpy as np
+import random
+import copy
 from vpython import vec
 
 class UavBsModel:
     def __init__(self, length, width):
         self.uavs = []
-        self.ues = []
+        self.backup_ues = []
         self.ground = Ground(length, width)
-        # Simulation window parameters
-        r = 1  # radius of disk
-        xx0 = 0
-        yy0 = 0  # centre of disk
-        areaTotal = np.pi * r ** 2  # area of disk
-
-        # Point process parameters
-        lambda0 = 100  # intensity (ie mean density) of the Poisson process
-
-        # Simulate Poisson point process
-        numbPoints = np.random.poisson(lambda0 * areaTotal)  # Poisson number of points
-        theta = 2 * np.pi * np.random.uniform(0, 1, numbPoints)  # angular coordinates
-        rho = r * np.sqrt(np.random.uniform(0, 1, numbPoints))  # radial coordinates
+        random.Random().seed(time.time())
 
         # Convert from polar to Cartesian coordinates
-        xx = rho * np.cos(theta)
-        yy = rho * np.sin(theta)
+        xx = np.random.uniform(0, 1, 2000)
+        yy = np.random.uniform(0, 1, 2000)
 
         # Shift centre of disk to (xx0,yy0)
-        ue_xx = (xx + xx0) * (length / 2) + self.ground.length / 2
-        ue_yy = (yy + yy0) * (width / 2) + self.ground.width / 2
+        xx = xx * length
+        yy = yy * width
 
-        for ue_x, ue_y in zip(ue_xx, ue_yy):
-            self.ues.append(vec(ue_x, 0, ue_y))
+        for ue_x, ue_y in zip(xx, yy):
+            self.backup_ues.append(vec(ue_x, 0, ue_y))
+        self.ues = copy.deepcopy(self.backup_ues)
+
+    def set_ue_num(self, num):
+        if num < len(self.ues):
+            del self.ues[num:]
+        elif num > len(self.ues):
+            for i in range(len(self.ues), num):
+                self.ues.append(self.backup_ues[i])
 
 
 class Uav:
