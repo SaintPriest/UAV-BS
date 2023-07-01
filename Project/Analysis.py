@@ -8,12 +8,12 @@ class Analysis:
         self.uavs = uavs
         self.ues = ues
         self.total_speed_g = graph(title="<i>t</i>-<i>speed</i> plot", width=600, height=450, x=0, y=400,
-                                   xtitle="<i>t</i> (s)", ytitle="<i>speed</i> (Gbps)", fast=True)
+                                   xtitle="<i>t</i> (s)", ytitle="<i>speed</i> (Mbps)", fast=True)
         self.total_speed_gc = gcurve(graph=self.total_speed_g, color=color.red)
 
         if all_uav_curves:
             self.speed_g = graph(title="<i>t</i>-<i>speed</i> plot", width=600, height=450, x=0, y=400,
-                               xtitle="<i>t</i> (s)", ytitle="<i>total speed</i> (Gbps)", fast=True)
+                               xtitle="<i>t</i> (s)", ytitle="<i>total speed</i> (Mbps)", fast=True)
             self.speed_gc = []
             colors = [color.blue, color.cyan, color.green, color.orange, color.magenta, color.purple,
                       color.yellow, color.black, vector(0.8,0.4,0.6), color.red] * 5
@@ -48,6 +48,9 @@ class Analysis:
     def r(self, v1, v2):
         return np.linalg.norm((v1.x - v2.x, v1.z - v2.z))
 
+    def d_(self, i, j):
+        return np.linalg.norm((self.r_(i, j), self.h_(j)))
+
     def L(self, h, r):
         a = 12.08
         b = 0.11
@@ -63,10 +66,37 @@ class Analysis:
         l_part3 = 20 * math.log(4 * math.pi * fc / c, 10)
         return l_part1 + l_part2 + l_part3 + eta_nlos
 
+    # def orig_L(self, h, r, d):
+    #     p_los = self.P_los(h, r)
+    #     l_los = self.L_los(d)
+    #     p_nlos = 1 - p_los
+    #     l_nlos = self.L_nlos(d)
+    #     l = p_los * l_los + p_nlos * l_nlos
+    #     print(l - self.simp_L(h, r))
+    #     return l
+    #
+    # def P_los(self, h, r):
+    #     a = 12.08
+    #     b = 0.11
+    #     return 1 / (1 + a * math.exp(-b * (180 / math.pi * math.atan(h / r) - a)))
+    #
+    # def L_los(self, d):
+    #     fc = 2 * (10 ** 9)
+    #     c = 3 * (10 ** 8)
+    #     eta_los = 1.6
+    #     return 20 * math.log(4 * math.pi * fc * d / c, 10) + eta_los
+    #
+    # def L_nlos(self, d):
+    #     fc = 2 * (10 ** 9)
+    #     c = 3 * (10 ** 8)
+    #     eta_nlos = 23
+    #     return 20 * math.log(4 * math.pi * fc * d / c, 10) + eta_nlos
+
     def SINR_(self, i, j):
         P = 100
         B = 2 * (10 ** 7)
-        N0 = 4.1843795 / (10 ** 21)
+        N0 = 4.1843795 * (10 ** -21)
+
         return P * (10 ** (-self.L(self.h_(j), self.r_(i, j)) / 10)) / (self.I_(i, j) + B * N0)
 
     def I_(self, i, j):

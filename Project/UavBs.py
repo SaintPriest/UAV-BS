@@ -20,10 +20,10 @@ class UavBs:
         ground_length = 100 * math.sqrt(3) * 2
         ground_width = ground_length
         uav_arrange = (3, 3)
-        uav_distance = 100 * math.sqrt(3)
+        self.uav_distance = 100 * math.sqrt(3)
         uav_height = 100
         uav_theta = math.atan(1)
-        ue_init_num = 300
+        ue_init_num = 100
         self.level_step = 10 / update_rate  # m/s
         self.raise_step = 5 / update_rate
         self.fall_step = 3 / update_rate
@@ -44,15 +44,22 @@ class UavBs:
         # 效能評估 通道模型: 使用者與無人機的關係
         # 輸入 每一台無人機與地面的使用者
 
+        # function static variable
+        self.orig_center_uav_x = 0
+        self.orig_center_uav_y = 0
+        self.orig_near_uav_x = 0
+        self.orig_near_uav_y = 0
+        self.update_replacing_strategy2_theta = 0
+        self.update_replacing_strategy2_count = 0
+
         # model
         self.model = UavBsModel(ground_length, ground_width)
         for i in range(uav_arrange[0]):
             for j in range(uav_arrange[1] - (1 if (i % 2 == 0) else 0)):
-                position_x_offset = uav_distance / 2 if (i % 2 == 0) else 0  # shift right
+                position_x_offset = self.uav_distance / 2 if (i % 2 == 0) else 0  # shift right
                 self.model.uavs.append(
-                    Uav(position=vec(position_x_offset + j * uav_distance, 0, i * uav_distance * math.sqrt(3) / 2),
+                    Uav(position=vec(position_x_offset + j * self.uav_distance, 0, i * self.uav_distance * math.sqrt(3) / 2),
                         height=uav_height, theta=uav_theta))
-        self.model.set_ue_num(ue_init_num)
 
         # view
         self.motion = Motion(ground_length=self.model.ground.length, ground_width=self.model.ground.width)
@@ -61,6 +68,8 @@ class UavBs:
         for ue in self.model.ues:
             self.motion.add_ue(position=vec(ue.x - self.model.ground.length / 2,
                                             ue.y, ue.z - self.model.ground.width / 2))
+
+        self.model.set_ue_num(ue_init_num)
         self.motion.set_ue_num(ue_init_num)
 
         if self.disable_uav_5:
@@ -177,8 +186,8 @@ class UavBs:
                     self.analysis.speed_gc[-1], self.analysis.speed_gc[(len(self.analysis.speed_gc) - 1) // 2]
                 self.analysis.del_speed_gc()
 
-            self.replacing_state = 0
             self.replacing = False
+            self.replacing_state = 0
 
             for button in self.replacement_buttons:
                 button.disabled = False
@@ -188,7 +197,59 @@ class UavBs:
             return
 
         if self.replacing_state == 0:  # init state
-            pass
+            self.orig_center_uav_x = self.model.uavs[len(self.model.uavs) // 2].position.x
+            self.orig_center_uav_y = self.model.uavs[len(self.model.uavs) // 2].position.z
+            self.orig_near_uav_x = self.model.uavs[len(self.model.uavs) // 2 + 1].position.x
+            self.orig_near_uav_y = self.model.uavs[len(self.model.uavs) // 2 + 1].position.z
+            self.update_replacing_strategy2_theta = math.acos(
+                1 - ((self.level_step ** 2) / (2 * ((self.uav_distance / 2) ** 2))))
+            self.update_replacing_strategy2_count = 1
+            self.replacing_state = 1
+
+        elif self.replacing_state == 1:  # a half part of swapping state
+            center_uav = self.model.uavs[len(self.model.uavs) // 2]
+            near_uav = self.model.uavs[len(self.model.uavs) // 2 + 1]
+            theta = self.update_replacing_strategy2_theta * self.update_replacing_strategy2_count
+            theta = min(math.pi / 2, theta)
+            theta_p = (math.pi - theta) / 2
+            s = (self.uav_distance / 2) * math.sqrt(2 * (1 - math.cos(2 * theta)))
+            delta_x = s * math.cos(theta_p)
+            delta_y = s * math.sin(theta_p)
+            center_uav.position.x = self.orig_center_uav_x + delta_x
+            center_uav.position.z = self.orig_center_uav_y + delta_y
+
+            self.update_replacing_strategy2_count += 1
+
+            if theta == math.pi / 2:
+                self.update_replacing_strategy2_count = 0
+                self.orig_center_uav_x = center_uav.position.x
+                self.orig_center_uav_y = center_uav.position.z
+                self.replacing_state = 3
+
+        elif self.replacing_state == 2:  # another part of swapping state
+            center_uav = self.model.uavs[len(self.model.uavs) // 2]
+            near_uav = self.model.uavs[len(self.model.uavs) // 2 + 1]
+            theta = min(math.pi / 2, self.update_replacing_strategy2_theta * self.update_replacing_strategy2_count)
+            s = self.level_step * math.sqrt(2 * (1 - math.cos(theta)))
+            theta_p = (math.pi - theta) / 2
+            delta_x = s * math.cos(theta_p)
+            delta_y = -s * math.sin(theta_p)
+            center_uav.position.x = self.orig_center_uav_x + delta_x
+            center_uav.position.z = self.orig_center_uav_y + delta_y
+
+            self.update_replacing_strategy2_count += 1
+
+            if theta == math.pi / 2:
+                self.update_replacing_strategy2_count = 0
+                self.replacing_state = 3
+
+        else:  # finalize
+            # TODO: exchange model, motion, analysis
+            self.replacing = False
+            self.replacing_state = 0
+
+            for button in self.replacement_buttons:
+                button.disabled = False
 
     def update_pos(self):
         for uav, uav_model in zip(self.motion.uavs, self.model.uavs):
@@ -221,7 +282,7 @@ class UavBs:
         speed_sum = 0
 
         for j in range(len(self.model.uavs)):
-            speed = self.analysis.C_(j) / (10 ** 9)
+            speed = self.analysis.C_(j) / (10 ** 6)
             if self.all_uav_curves:
                 self.analysis.add_speed(j, self.time / update_rate, speed)
             speed_sum += speed

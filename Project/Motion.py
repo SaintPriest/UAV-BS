@@ -21,6 +21,7 @@ class Motion:
     def add_ue(self, position):
         self.ues.append(cylinder(canvas=self.scene, pos=position, axis=vec(0, 0.2, 0), opacity=0.7, color=color.black,
                                 radius=0.8))
+        self.ue_num = len(self.ues)
 
     def set_ue_num(self, num):
         for i in range(num, self.ue_num):

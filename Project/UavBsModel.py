@@ -33,14 +33,12 @@ class UavBsModel:
 
 
 class Uav:
-    def __init__(self, position, height, theta=math.pi / 3, radius=None):
+    def __init__(self, position, height, theta=math.pi / 3):
         self.position = position
         self.height = height
         self.theta = theta
-        if radius is not None:
-            self.radius = radius
-        else:
-            self.update_radius()
+        self.radius = 0
+        self.update_radius()
 
     def update_radius(self):
         self.radius = self.height * (1 / math.tan(self.theta))
