@@ -212,7 +212,7 @@ class UavBs:
             theta = self.update_replacing_strategy2_theta * self.update_replacing_strategy2_count
             theta = min(math.pi / 2, theta)
             theta_p = (math.pi - theta) / 2
-            s = (self.uav_distance / 2) * math.sqrt(2 * (1 - math.cos(2 * theta)))
+            s = (self.uav_distance / 2) * math.sqrt(2 * (1 - math.cos(theta)))
             delta_x = s * math.cos(theta_p)
             delta_y = s * math.sin(theta_p)
             center_uav.position.x = self.orig_center_uav_x + delta_x
@@ -224,23 +224,23 @@ class UavBs:
                 self.update_replacing_strategy2_count = 0
                 self.orig_center_uav_x = center_uav.position.x
                 self.orig_center_uav_y = center_uav.position.z
-                self.replacing_state = 3
+                self.replacing_state = 2
 
         elif self.replacing_state == 2:  # another part of swapping state
             center_uav = self.model.uavs[len(self.model.uavs) // 2]
             near_uav = self.model.uavs[len(self.model.uavs) // 2 + 1]
-            theta = min(math.pi / 2, self.update_replacing_strategy2_theta * self.update_replacing_strategy2_count)
-            s = self.level_step * math.sqrt(2 * (1 - math.cos(theta)))
+            theta = self.update_replacing_strategy2_theta * self.update_replacing_strategy2_count
+            theta = min(math.pi / 2, theta)
             theta_p = (math.pi - theta) / 2
-            delta_x = s * math.cos(theta_p)
-            delta_y = -s * math.sin(theta_p)
+            s = (self.uav_distance / 2) * math.sqrt(2 * (1 - math.cos(theta)))
+            delta_x = s * math.sin(theta_p)
+            delta_y = -s * math.cos(theta_p)
             center_uav.position.x = self.orig_center_uav_x + delta_x
             center_uav.position.z = self.orig_center_uav_y + delta_y
 
             self.update_replacing_strategy2_count += 1
 
             if theta == math.pi / 2:
-                self.update_replacing_strategy2_count = 0
                 self.replacing_state = 3
 
         else:  # finalize
