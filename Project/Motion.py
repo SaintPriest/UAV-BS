@@ -8,6 +8,8 @@ class Motion:
         self.scene = canvas(title="3D Motion\n\n", width=800, height=400,
                             center=vec(0, 5, 0), background=vec(0, 0.6, 0.6))
         self.scene.caption = "\n"
+        self.scene.camera.pos = vec(0, 450, 0)
+        self.scene.camera.axis = scene.center - self.scene.camera.pos
         self.ground = box(canvas=self.scene, pos=vec(0, -1, 0), size=vec(ground_length, 1, ground_width),
                           color=color.white)
         self.uavs = []

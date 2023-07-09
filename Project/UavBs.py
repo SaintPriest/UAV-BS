@@ -34,7 +34,7 @@ class UavBs:
 
         # states
         self.replacing = False
-        self.update_replacing_strategy = self.update_replacing_strategy1  # function ptr
+        self.update_replacing_strategy = None  # function ptr
         self.replacing_state = 0
 
         # mutex
@@ -63,7 +63,9 @@ class UavBs:
             for j in range(uav_arrange[1] - (1 if (i % 2 == 0) else 0)):
                 position_x_offset = self.uav_distance / 2 if (i % 2 == 0) else 0  # shift right
                 self.model.uavs.append(
-                    Uav(position=vec(position_x_offset + j * self.uav_distance, 0, i * self.uav_distance * math.sqrt(3) / 2),
+                    Uav(position=vec(position_x_offset + j * self.uav_distance,
+                                     0,
+                                     i * self.uav_distance * math.sqrt(3) / 2),
                         height=uav_height, theta=uav_theta))
         self.model.ues[0].x = self.model.uavs[0].position.x
         self.model.ues[0].z = self.model.uavs[0].position.z
@@ -262,7 +264,7 @@ class UavBs:
                 self.motion.uavs[len(self.model.uavs) // 2 + 1], self.motion.uavs[len(self.model.uavs) // 2]
 
             if self.all_uav_curves:
-                self.analysis.speed_gc[len(self.model.uavs) // 2], self.analysis.speed_gc[len(self.model.uavs) // 2 + 1] =\
+                self.analysis.speed_gc[len(self.model.uavs) // 2], self.analysis.speed_gc[len(self.model.uavs) // 2 + 1] = \
                     self.analysis.speed_gc[len(self.model.uavs) // 2 + 1], self.analysis.speed_gc[len(self.model.uavs) // 2]
 
             self.replacing = False
@@ -310,14 +312,17 @@ class UavBs:
         self.analysis.add_total_speed(self.time / sys_config_update_rate, speed_sum)
         self.sync_lock = False
 
+    def update(self):
+        self.update_replacing()
+        self.update_pos()
+        self.update_analysis()
+
 
 def main():
     bs = UavBs()
     while True:
         rate(sys_config_update_rate)
-        bs.update_replacing()
-        bs.update_pos()
-        bs.update_analysis()
+        bs.update()
 
 
 if __name__ == '__main__':
