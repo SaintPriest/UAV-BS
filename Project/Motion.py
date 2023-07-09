@@ -5,7 +5,7 @@ class Motion:
     def __init__(self, ground_length, ground_width):
         self.ground_length = ground_length
         self.ground_width = ground_width
-        self.scene = canvas(title="3D Motion\n\n", width=800, height=400, x=0, y=0,
+        self.scene = canvas(title="3D Motion\n\n", width=800, height=400,
                             center=vec(0, 5, 0), background=vec(0, 0.6, 0.6))
         self.scene.caption = "\n"
         self.ground = box(canvas=self.scene, pos=vec(0, -1, 0), size=vec(ground_length, 1, ground_width),
