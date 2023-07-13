@@ -8,7 +8,7 @@ class Analysis:
         self.uavs = uavs
         self.ues = ues
         self.total_speed_g = graph(title="<i>t</i>-<i>speed</i> plot", align='left',
-                                   xtitle="<i>t</i> (s)", ytitle="<i>speed</i> (Mbps)", fast=True)
+                                   xtitle="<i>t</i> (s)", ytitle="<i>system-sum-rate</i> (Mbps)", fast=True)
         self.total_speed_gc = gcurve(graph=self.total_speed_g, color=color.red)
 
         if all_uav_curves:
