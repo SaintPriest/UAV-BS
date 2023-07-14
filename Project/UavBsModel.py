@@ -75,6 +75,8 @@ class UavBsModel:
         for ue_x, ue_y in zip(ue_xx, ue_yy):
             if in_hexagon(self.center, (ue_x, ue_y), hexagon_length):
                 self.ues.append(vec(ue_x, 0, ue_y))
+            if len(self.ues) == 2000:
+                break
 
         self.ues_backup = copy.deepcopy(self.ues)
 
