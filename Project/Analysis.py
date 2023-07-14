@@ -24,6 +24,12 @@ class Analysis:
                            xtitle="<i>t</i> (s)", ytitle="<i>coverage</i> (%)", fast=True)
         self.coverage_gc = gcurve(graph=coverage_g, color=color.blue)
 
+    def clear_curves(self):
+        self.coverage_gc.data = []
+        self.total_speed_gc.data = []
+        for curve in self.speed_gc:
+            curve.data = []
+
     def add_coverage(self, x, y):
         self.coverage_gc.plot(pos=(x, y))
 
@@ -37,6 +43,7 @@ class Analysis:
         self.speed_gc.append(gcurve(graph=self.speed_g, color=color.red))
 
     def del_speed_gc(self):
+        self.speed_gc[-1].data = []
         del self.speed_gc[-1]
 
     def h_(self, j):

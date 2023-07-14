@@ -18,8 +18,7 @@ class UavBs:
         self.all_uav_curves = True
 
         # custom parameters
-        ground_length = 100 * math.sqrt(3) * 2
-        ground_width = ground_length
+        hexagon_length = 400 / math.sqrt(3)
         uav_arrange = (3, 3)
         self.uav_distance = 100 * math.sqrt(3)
         uav_height = 100
@@ -58,28 +57,27 @@ class UavBs:
         self.update_replacing_strategy2_count = 0
 
         # model
-        self.model = UavBsModel(ground_length, ground_width)
+        uavs = []
         for i in range(uav_arrange[0]):
             for j in range(uav_arrange[1] - (1 if (i % 2 == 0) else 0)):
                 position_x_offset = self.uav_distance / 2 if (i % 2 == 0) else 0  # shift right
-                self.model.uavs.append(
+                uavs.append(
                     Uav(position=vec(position_x_offset + j * self.uav_distance,
                                      0,
                                      i * self.uav_distance * math.sqrt(3) / 2),
                         height=uav_height, theta=uav_theta))
-        self.model.ues[0].x = self.model.uavs[0].position.x
-        self.model.ues[0].z = self.model.uavs[0].position.z
+        self.model = UavBsModel(hexagon_length, uavs)
 
         # analysis
         self.analysis = Analysis(self.model.uavs, self.model.ues, self.all_uav_curves)
 
         # view
-        self.motion = Motion(ground_length=self.model.ground.length, ground_width=self.model.ground.width)
+        self.motion = Motion(hexagon_length)
         for uav_model in self.model.uavs:
             self.motion.add_uav(uav_model.position, uav_model.height, uav_model.radius)
         for ue in self.model.ues:
-            self.motion.add_ue(position=vec(ue.x - self.model.ground.length / 2,
-                                            ue.y, ue.z - self.model.ground.width / 2))
+            self.motion.add_ue(position=vec(ue.x - self.model.center.x,
+                                            ue.y, ue.z - self.model.center.z))
 
         self.model.set_ue_num(ue_init_num)
         self.motion.set_ue_num(ue_init_num)
@@ -154,6 +152,7 @@ class UavBs:
             return
         if self.replacing_state == 0:
             self.replacing_time_start = self.time
+            self.analysis.clear_curves()
         if (self.time - self.replacing_time_start) % 10 == 0:
             self.replacing_time_text.text = f'{(self.time - self.replacing_time_start) / sys_config_update_rate}'
         self.update_replacing_strategy()
@@ -196,7 +195,7 @@ class UavBs:
 
         elif self.replacing_state == 3:
             target_x = max(map(lambda x: x.position.x, self.model.uavs[(len(self.model.uavs) - 1) // 2 + 1:])) + \
-                       self.model.uavs[1].position.x - self.model.uavs[0].position.x
+                       self.uav_distance * 1.0625
             old_uav = self.model.uavs[(len(self.model.uavs) - 1) // 2]
             old_uav.position.x += min(self.level_step, target_x - old_uav.position.x)
             if isclose(old_uav.position.x, target_x):
@@ -275,9 +274,9 @@ class UavBs:
 
     def update_pos(self):
         for uav, uav_model in zip(self.motion.uavs, self.model.uavs):
-            uav.pos = vec(uav_model.position.x - self.model.ground.length / 2,
+            uav.pos = vec(uav_model.position.x - self.model.center.x,
                           uav_model.position.y,
-                          uav_model.position.z - self.model.ground.width / 2)
+                          uav_model.position.z - self.model.center.z)
 
     def update_height(self):
         for uav, uav_model in zip(self.motion.uavs, self.model.uavs):
@@ -285,8 +284,11 @@ class UavBs:
             uav.radius = uav_model.radius
 
     def update_analysis(self):
-        self.time += 1
-        if self.time % 20 != 0:
+        if not self.replacing:
+            return
+
+        analyze_time = self.time - self.replacing_time_start
+        if analyze_time % 20 != 0:
             return
 
         coverage = 0
@@ -299,29 +301,30 @@ class UavBs:
                 if self.analysis.cover(ue, uav):
                     coverage += 1
                     break
-        self.analysis.add_coverage(self.time / sys_config_update_rate, coverage * 100 / len(self.model.ues))
+        self.analysis.add_coverage(analyze_time / sys_config_update_rate, coverage * 100 / len(self.model.ues))
 
         speed_sum = 0
 
         for j in range(len(self.model.uavs)):
             speed = self.analysis.C_(j) / (10 ** 6)
             if self.all_uav_curves:
-                self.analysis.add_speed(j, self.time / sys_config_update_rate, speed)
+                self.analysis.add_speed(j, analyze_time / sys_config_update_rate, speed)
             speed_sum += speed
 
-        self.analysis.add_total_speed(self.time / sys_config_update_rate, speed_sum)
+        self.analysis.add_total_speed(analyze_time / sys_config_update_rate, speed_sum)
         self.sync_lock = False
 
     def update(self):
         self.update_replacing()
         self.update_pos()
         self.update_analysis()
+        self.time += 1
 
 
 def main():
     bs = UavBs()
     while True:
-        rate(sys_config_update_rate)
+        rate(sys_config_update_rate * 10)
         bs.update()
 
 

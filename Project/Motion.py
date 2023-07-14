@@ -1,17 +1,19 @@
+import math
+
 from vpython import *
 
 
 class Motion:
-    def __init__(self, ground_length, ground_width):
-        self.ground_length = ground_length
-        self.ground_width = ground_width
-        self.scene = canvas(title="3D Motion\n\n", width=800, height=400,
-                            center=vec(0, 5, 0), background=vec(0, 0.6, 0.6))
+    def __init__(self, hexagon_length):
+        self.hexagon_length = hexagon_length
+        self.scene = canvas(title="3D Motion\n\n", width=800, height=400, background=vec(0, 0.6, 0.6))
         self.scene.caption = "\n"
-        self.scene.camera.pos = vec(0, 450, 0)
+        self.scene.camera.pos = vec(0, 450, 0.391)
         self.scene.camera.axis = scene.center - self.scene.camera.pos
-        self.ground = box(canvas=self.scene, pos=vec(0, -1, 0), size=vec(ground_length, 1, ground_width),
-                          color=color.white)
+        # self.ground = box(canvas=self.scene, pos=vec(0, -1, 0), size=vec(ground_length, 1, ground_width),
+        #                   color=color.white)
+        self.ground2 = extrusion(canvas=self.scene, path=[vec(0, 0, 0), vec(0, -1, 0)],
+                                 shape=shapes.hexagon(length=400/math.sqrt(3), rotate=math.pi/6), color=color.white)
         self.uavs = []
         self.ues = []
         self.ue_num = 0
