@@ -6,6 +6,45 @@ import copy
 from vpython import vec
 
 
+def rotate(origin, point, angle):
+    """
+    Rotate a point counterclockwise by a given angle around a given origin.
+
+    The angle should be given in radians.
+    """
+    ox, oy = origin
+    px, py = point
+
+    qx = ox + math.cos(angle) * (px - ox) - math.sin(angle) * (py - oy)
+    qy = oy + math.sin(angle) * (px - ox) + math.cos(angle) * (py - oy)
+    return qx, qy
+
+
+def in_hexagon(origin, point, hexagon_length):
+    ue_x = point[0]
+    ue_y = point[1]
+    a = np.linalg.norm((ue_x - origin.x, ue_y - origin.z))
+    b = hexagon_length
+    c = np.linalg.norm((ue_x - (origin.x + hexagon_length), ue_y - origin.z))
+    theta = math.acos((a ** 2 + b ** 2 - c ** 2) / (2 * a * b))
+    if ue_y - origin.z < 0:
+        theta = math.pi * 2 - theta
+
+    while theta > math.pi / 3:
+        ue_x, ue_y = rotate((origin.x, origin.z), (ue_x, ue_y), -math.pi / 3)
+        theta -= math.pi / 3
+
+    # to polar
+    ue_x -= origin.x
+    ue_y -= origin.z
+    A = (hexagon_length, 0)
+    AB = (hexagon_length / 2, -hexagon_length * math.sqrt(3) / 2)
+    AP = (A[0] - ue_x, A[1] - ue_y)
+    if np.cross(AB, AP) >= 0:
+        return True
+    return False
+
+
 class UavBsModel:
     def __init__(self, hexagon_length, uavs):
         self.uavs = uavs
@@ -34,7 +73,8 @@ class UavBsModel:
         ue_yy = yy + yy0
 
         for ue_x, ue_y in zip(ue_xx, ue_yy):
-            self.ues.append(vec(ue_x, 0, ue_y))
+            if in_hexagon(self.center, (ue_x, ue_y), hexagon_length):
+                self.ues.append(vec(ue_x, 0, ue_y))
 
         self.ues_backup = copy.deepcopy(self.ues)
 
