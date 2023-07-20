@@ -24,7 +24,7 @@ class UavBs:
         uav_height = 100
         uav_theta = math.atan(1)
         ue_init_num = 100
-        uav_speed_up = 5  # speed up of UAV
+        uav_speed_up = 1  # speed up of UAV
         self.level_step = 10 * uav_speed_up / sys_config_update_rate  # m/s
         self.raise_step = 5 * uav_speed_up / sys_config_update_rate
         self.fall_step = 3 * uav_speed_up / sys_config_update_rate
@@ -289,14 +289,9 @@ class UavBs:
             return
         analyze_time = analyze_time / sys_config_update_rate
 
-        coverage = 0
         self.sync_lock = True
-        for ue in self.model.ues:
-            for uav in self.model.uavs:
-                if self.analysis.cover(ue, uav):
-                    coverage += 1
-                    break
-        self.analysis.add_coverage(analyze_time, coverage * 100 / len(self.model.ues))
+        self.analysis.update_cover_map()
+        self.analysis.add_coverage(analyze_time, self.analysis.connected_rate * 100)
 
         speed_sum = 0
 

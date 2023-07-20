@@ -7,6 +7,8 @@ class Analysis:
     def __init__(self, uavs, ues, all_uav_curves, fast):
         self.uavs = uavs
         self.ues = ues
+        self.cover_map = np.zeros((len(ues), len(uavs) + 2))
+        self.connected_rate = 0
         self.total_speed_g = graph(title="<i>t</i>-<i>speed</i> plot", align='left',
                                    xtitle="<i>t</i> (s)", ytitle="<i>system-sum-rate</i> (Mbps)", fast=fast)
         self.total_speed_gc = gcurve(graph=self.total_speed_g, color=color.red)
@@ -20,9 +22,23 @@ class Analysis:
             for i in range(len(self.uavs)):
                 self.speed_gc.append(gcurve(graph=self.speed_g, color=colors[i]))
 
-        coverage_g = graph(title="<i>t</i>-<i>coverage</i> plot", align='left',
-                           xtitle="<i>t</i> (s)", ytitle="<i>coverage</i> (%)", fast=fast)
+        coverage_g = graph(title="<i>t</i>-<i>connected</i> plot", align='left',
+                           xtitle="<i>t</i> (s)", ytitle="<i>connected</i> (%)", fast=fast)
         self.coverage_gc = gcurve(graph=coverage_g, color=color.blue)
+
+    def update_cover_map(self):
+        connected_num = 0
+        for i, ue in enumerate(self.ues):
+            self.cover_map[i][-1] = 0
+            for j, uav in enumerate(self.uavs):
+                self.cover_map[i][j] = self.cover(ue, uav)
+                self.cover_map[i][-1] = self.cover_map[i][-1] or self.cover_map[i][j]
+            if self.cover_map[i][-1]:
+                connected_num += 1
+        self.connected_rate = connected_num / len(self.ues)
+
+    def is_connected(self, i):
+        return self.cover_map[i][-1]
 
     def clear_curves(self):
         self.coverage_gc.data = []
@@ -119,9 +135,12 @@ class Analysis:
         return accu
 
     def phi_(self, i, j, jp):
-        if self.cover(self.ues[i], self.uavs[j]) and self.cover(self.ues[i], self.uavs[jp]):
+        if self.cover_(i, j) and self.cover_(i, jp):
             return 1
         return 0
+
+    def cover_(self, i, j):
+        return self.cover_map[i][j]
 
     def cover(self, ue, uav):
         return self.r(uav.position, ue) <= uav.radius
@@ -133,7 +152,7 @@ class Analysis:
     def C_(self, j):
         c_acc = 0
         for i in range(len(self.ues)):
-            if self.cover(self.ues[i], self.uavs[j]):
+            if self.cover_(i, j):
                 _c = self.c_(i, j)
                 c_acc += _c
                 # print(f'UE ({self.ues[i].x}, {self.ues[i].z}), UAV({self.uavs[j].position.x}, {self.uavs[j].position.z}, h={self.uavs[j].height}, r={self.uavs[j].radius}), speed = {_c}')
