@@ -6,7 +6,7 @@ from Motion import Motion
 import math
 
 # system config
-sys_config_update_rate = 100
+sys_config_update_rate = 100  # system updates 100 times per second, i.e., update once per 0.01 second.
 
 
 class UavBs:
@@ -24,29 +24,29 @@ class UavBs:
         uav_height = 100
         uav_theta = math.atan(1)
         ue_init_num = 100
-        self.level_step = 10 / sys_config_update_rate  # m/s
-        self.raise_step = 5 / sys_config_update_rate
-        self.fall_step = 3 / sys_config_update_rate
-
-        # debug
-        self.disable_uav_5 = False
+        uav_speed_up = 5  # speed up of UAV
+        self.level_step = 10 * uav_speed_up / sys_config_update_rate  # m/s
+        self.raise_step = 5 * uav_speed_up / sys_config_update_rate
+        self.fall_step = 3 * uav_speed_up / sys_config_update_rate
 
         # states
         self.replacing = False
         self.update_replacing_strategy = None  # function ptr
         self.replacing_state = 0
+        analyze_update_rate = 5  # figures updates 5 times per second. It should be a factor of sys_config_update_rate
+        self.analyze_update_period = sys_config_update_rate // analyze_update_rate
+        fast_analyze = False  # Turn it off if you need analysis data
 
         # mutex
         self.sync_lock = False
 
-        # UE number
-        # three swap strategy buttons
-        # 效能評估 通道模型: 使用者與無人機的關係
-        # 輸入 每一台無人機與地面的使用者
-
-        # function static variable
+        # function static variables for replacing
         self.replacing_time_start = 0
 
+        # replacing strategy 1
+        self.has_additional_uav = False
+
+        # replacing strategy 2
         self.orig_center_uav_x = 0
         self.orig_center_uav_y = 0
         self.orig_near_uav_x = 0
@@ -69,7 +69,7 @@ class UavBs:
         self.model = UavBsModel(hexagon_length, uavs)
 
         # analysis
-        self.analysis = Analysis(self.model.uavs, self.model.ues, self.all_uav_curves)
+        self.analysis = Analysis(self.model.uavs, self.model.ues, self.all_uav_curves, fast_analyze)
 
         # view
         self.motion = Motion(hexagon_length)
@@ -81,9 +81,6 @@ class UavBs:
 
         self.model.set_ue_num(ue_init_num)
         self.motion.set_ue_num(ue_init_num)
-
-        if self.disable_uav_5:
-            self.motion.uavs[5].visible = False
 
         # UI
         def set_all_height(vslider):
@@ -152,7 +149,10 @@ class UavBs:
             return
         if self.replacing_state == 0:
             self.replacing_time_start = self.time
-            self.analysis.clear_curves()
+            if self.all_uav_curves:
+                self.analysis.clear_curves()
+                if self.has_additional_uav:
+                    self.analysis.del_speed_gc()
         if (self.time - self.replacing_time_start) % 10 == 0:
             self.replacing_time_text.text = f'{(self.time - self.replacing_time_start) / sys_config_update_rate}'
         self.update_replacing_strategy()
@@ -162,15 +162,14 @@ class UavBs:
     def update_replacing_strategy1(self):
         if self.replacing_state == 0:  # init state
             self.model.uavs.append(
-                Uav(position=vec(max(map(lambda x: x.position.x, self.model.uavs)) +
-                                 (self.model.uavs[1].position.x - self.model.uavs[0].position.x) / 2,
-                                 0,
+                Uav(position=vec(self.model.uavs[len(self.model.uavs) // 2 + 1].position.x + self.uav_distance * 0.9, 0,
                                  self.model.uavs[len(self.model.uavs) // 2].position.z),
                     height=self.model.uavs[0].height - 20,
                     theta=self.model.uavs[0].theta))
             self.motion.add_uav(self.model.uavs[-1].position, self.model.uavs[-1].height, self.model.uavs[-1].radius)
             if self.all_uav_curves:
                 self.analysis.add_speed_gc()
+                self.has_additional_uav = True
             self.replacing_state = 1
 
         elif self.replacing_state == 1:  # moving state
@@ -194,8 +193,7 @@ class UavBs:
                 self.replacing_state = 3
 
         elif self.replacing_state == 3:
-            target_x = max(map(lambda x: x.position.x, self.model.uavs[(len(self.model.uavs) - 1) // 2 + 1:])) + \
-                       self.uav_distance * 1.0625
+            target_x = self.model.uavs[(len(self.model.uavs) - 1) // 2 + 1].position.x + self.uav_distance * 1.0625
             old_uav = self.model.uavs[(len(self.model.uavs) - 1) // 2]
             old_uav.position.x += min(self.level_step, target_x - old_uav.position.x)
             if isclose(old_uav.position.x, target_x):
@@ -214,7 +212,6 @@ class UavBs:
             if self.all_uav_curves:
                 self.analysis.speed_gc[(len(self.analysis.speed_gc) - 1) // 2], self.analysis.speed_gc[-1] = \
                     self.analysis.speed_gc[-1], self.analysis.speed_gc[(len(self.analysis.speed_gc) - 1) // 2]
-                self.analysis.del_speed_gc()
 
             self.replacing = False
             self.replacing_state = 0
@@ -288,30 +285,28 @@ class UavBs:
             return
 
         analyze_time = self.time - self.replacing_time_start
-        if analyze_time % 20 != 0:
+        if analyze_time % self.analyze_update_period != 0:
             return
+        analyze_time = analyze_time / sys_config_update_rate
 
         coverage = 0
         self.sync_lock = True
         for ue in self.model.ues:
             for uav in self.model.uavs:
-                if self.disable_uav_5:
-                    if uav == self.model.uavs[5]:
-                        continue
                 if self.analysis.cover(ue, uav):
                     coverage += 1
                     break
-        self.analysis.add_coverage(analyze_time / sys_config_update_rate, coverage * 100 / len(self.model.ues))
+        self.analysis.add_coverage(analyze_time, coverage * 100 / len(self.model.ues))
 
         speed_sum = 0
 
         for j in range(len(self.model.uavs)):
             speed = self.analysis.C_(j) / (10 ** 6)
             if self.all_uav_curves:
-                self.analysis.add_speed(j, analyze_time / sys_config_update_rate, speed)
+                self.analysis.add_speed(j, analyze_time, round(speed, 3))
             speed_sum += speed
 
-        self.analysis.add_total_speed(analyze_time / sys_config_update_rate, speed_sum)
+        self.analysis.add_total_speed(analyze_time, round(speed_sum, 3))
         self.sync_lock = False
 
     def update(self):
@@ -324,7 +319,7 @@ class UavBs:
 def main():
     bs = UavBs()
     while True:
-        rate(sys_config_update_rate * 10)
+        rate(sys_config_update_rate)
         bs.update()
 
 

@@ -4,16 +4,16 @@ import numpy as np
 
 
 class Analysis:
-    def __init__(self, uavs, ues, all_uav_curves):
+    def __init__(self, uavs, ues, all_uav_curves, fast):
         self.uavs = uavs
         self.ues = ues
         self.total_speed_g = graph(title="<i>t</i>-<i>speed</i> plot", align='left',
-                                   xtitle="<i>t</i> (s)", ytitle="<i>system-sum-rate</i> (Mbps)", fast=True)
+                                   xtitle="<i>t</i> (s)", ytitle="<i>system-sum-rate</i> (Mbps)", fast=fast)
         self.total_speed_gc = gcurve(graph=self.total_speed_g, color=color.red)
 
         if all_uav_curves:
             self.speed_g = graph(title="<i>t</i>-<i>speed</i> plot", align='left',
-                                 xtitle="<i>t</i> (s)", ytitle="<i>total speed</i> (Mbps)", fast=True)
+                                 xtitle="<i>t</i> (s)", ytitle="<i>total speed</i> (Mbps)", fast=fast)
             self.speed_gc = []
             colors = [color.blue, color.cyan, color.green, color.orange, color.magenta, color.purple,
                       color.yellow, color.black, vec(0.8, 0.4, 0.6), color.red] * 5
@@ -21,7 +21,7 @@ class Analysis:
                 self.speed_gc.append(gcurve(graph=self.speed_g, color=colors[i]))
 
         coverage_g = graph(title="<i>t</i>-<i>coverage</i> plot", align='left',
-                           xtitle="<i>t</i> (s)", ytitle="<i>coverage</i> (%)", fast=True)
+                           xtitle="<i>t</i> (s)", ytitle="<i>coverage</i> (%)", fast=fast)
         self.coverage_gc = gcurve(graph=coverage_g, color=color.blue)
 
     def clear_curves(self):
