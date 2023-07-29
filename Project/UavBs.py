@@ -15,7 +15,8 @@ class UavBs:
         self.time = 0
 
         # config
-        self.all_uav_curves = True
+        is_all_uav_curves_enabled = False  # high cost
+        is_ground_coverage_enabled = True  # high cost
 
         # custom parameters
         hexagon_length = 400 / math.sqrt(3)
@@ -23,8 +24,8 @@ class UavBs:
         self.uav_distance = 100 * math.sqrt(3)
         uav_height = 100
         uav_theta = math.atan(1)
-        ue_init_num = 100
-        uav_speed_up = 1  # speed up of UAV
+        ue_init_num = 300
+        uav_speed_up = 5  # speed up of UAV
         self.level_step = 10 * uav_speed_up / sys_config_update_rate  # m/s
         self.raise_step = 5 * uav_speed_up / sys_config_update_rate
         self.fall_step = 3 * uav_speed_up / sys_config_update_rate
@@ -42,9 +43,11 @@ class UavBs:
 
         # function static variables for replacing
         self.replacing_time_start = 0
+        self.replacing_inited = False
+        self.update_analysis_enabled = False
 
         # replacing strategy 1
-        self.has_additional_uav = False
+        self.has_additional_uav_curve = False
 
         # replacing strategy 2
         self.orig_center_uav_x = 0
@@ -55,6 +58,7 @@ class UavBs:
         self.replacing_strategy2_circle_y = 0
         self.update_replacing_strategy2_theta = 0
         self.update_replacing_strategy2_count = 0
+        self.replacing_y_weight = 0.5  # orig: 1
 
         # model
         uavs = []
@@ -69,7 +73,9 @@ class UavBs:
         self.model = UavBsModel(hexagon_length, uavs)
 
         # analysis
-        self.analysis = Analysis(self.model.uavs, self.model.ues, self.all_uav_curves, fast_analyze)
+        self.analysis = Analysis(self.model.uavs, self.model.ues, self.model.ues_backup,
+                                 is_all_uav_curves_enabled, is_ground_coverage_enabled,
+                                 fast_analyze)
 
         # view
         self.motion = Motion(hexagon_length)
@@ -91,7 +97,7 @@ class UavBs:
             self.update_height()
 
         wtext(text='UAV Height')
-        height_slider = slider(min=1.0, max=120.0, value=uav_height, length=200, bind=set_all_height, right=15,
+        height_slider = slider(min=10.0, max=100.0, value=uav_height, length=200, bind=set_all_height, right=15,
                                step=0.1)
         height_value_text = wtext(text='{:1.1f} m\n\n'.format(height_slider.value))
 
@@ -103,7 +109,7 @@ class UavBs:
             self.update_height()
 
         wtext(text='UAV Theta')
-        theta_slider = slider(min=1.0, max=89.0, value=degrees(uav_theta), length=200, bind=set_all_theta, right=15,
+        theta_slider = slider(min=10.0, max=80.0, value=degrees(uav_theta), length=200, bind=set_all_theta, right=15,
                               step=0.1)
         theta_value_text = wtext(text='{:1.1f} degrees\n\n'.format(theta_slider.value))
 
@@ -119,23 +125,13 @@ class UavBs:
         self.replacement_buttons = []
 
         def start_replacing_strategy1():
-            self.replacing_state = 0
             self.update_replacing_strategy = self.update_replacing_strategy1
-
-            for b in self.replacement_buttons:
-                b.disabled = True
-
             self.replacing = True
 
         self.replacement_buttons.append(button(bind=start_replacing_strategy1, text='Replace 1'))
 
         def start_replacing_strategy2():
-            self.replacing_state = 0
             self.update_replacing_strategy = self.update_replacing_strategy2
-
-            for b in self.replacement_buttons:
-                b.disabled = True
-
             self.replacing = True
 
         self.replacement_buttons.append(button(bind=start_replacing_strategy2, text='Replace 2'))
@@ -147,29 +143,47 @@ class UavBs:
     def update_replacing(self):
         if not self.replacing:
             return
-        if self.replacing_state == 0:
+
+        # init for replacing
+        if not self.replacing_inited:
+            self.replacing_state = 0
+            self.update_analysis_enabled = True
+            for b in self.replacement_buttons:
+                b.disabled = True
             self.replacing_time_start = self.time
-            if self.all_uav_curves:
-                self.analysis.clear_curves()
-                if self.has_additional_uav:
-                    self.analysis.del_speed_gc()
+            self.analysis.clear_data()
+            if self.has_additional_uav_curve:
+                self.analysis.del_speed_gc()
+                self.has_additional_uav_curve = False
+            self.replacing_inited = True
+
+        # UI updates
         if (self.time - self.replacing_time_start) % 10 == 0:
-            self.replacing_time_text.text = f'{(self.time - self.replacing_time_start) / sys_config_update_rate}'
+            self.replacing_time_text.text = f'{(self.time - self.replacing_time_start) / sys_config_update_rate} s'
+
         self.update_replacing_strategy()
+
+        # callback
         if not self.replacing:
-            self.replacing_time_text.text = f'{(self.time - self.replacing_time_start) / sys_config_update_rate}'
+            self.replacing_inited = False
+            self.replacing_time_text.text = f'{(self.time - self.replacing_time_start) / sys_config_update_rate} s'
+            self.replacing_time_text.text += f'  |  Avg disconnected rate: {round(self.analysis.avg_disconnected_rate(), 2)} %'
+            self.replacing_time_text.text += f'  |  Avg total speed: {round(self.analysis.avg_speed(), 1)} Mbps'
 
     def update_replacing_strategy1(self):
         if self.replacing_state == 0:  # init state
+            while self.sync_lock:
+                pass
             self.model.uavs.append(
-                Uav(position=vec(self.model.uavs[len(self.model.uavs) // 2 + 1].position.x + self.uav_distance * 0.9, 0,
+                Uav(position=vec(self.model.uavs[len(self.model.uavs) // 2 + 1].position.x + self.uav_distance * 0.85, 0,
                                  self.model.uavs[len(self.model.uavs) // 2].position.z),
                     height=self.model.uavs[0].height - 20,
                     theta=self.model.uavs[0].theta))
             self.motion.add_uav(self.model.uavs[-1].position, self.model.uavs[-1].height, self.model.uavs[-1].radius)
-            if self.all_uav_curves:
+            if self.analysis.is_all_uav_curves_enabled:
                 self.analysis.add_speed_gc()
-                self.has_additional_uav = True
+                self.has_additional_uav_curve = True
+
             self.replacing_state = 1
 
         elif self.replacing_state == 1:  # moving state
@@ -193,55 +207,70 @@ class UavBs:
                 self.replacing_state = 3
 
         elif self.replacing_state == 3:
-            target_x = self.model.uavs[(len(self.model.uavs) - 1) // 2 + 1].position.x + self.uav_distance * 1.0625
+            target_x = self.model.uavs[(len(self.model.uavs) - 1) // 2 + 1].position.x + self.uav_distance * 1.05
             old_uav = self.model.uavs[(len(self.model.uavs) - 1) // 2]
             old_uav.position.x += min(self.level_step, target_x - old_uav.position.x)
             if isclose(old_uav.position.x, target_x):
                 self.replacing_state = 4
 
         else:  # finalize
-            self.model.uavs[(len(self.model.uavs) - 1) // 2], self.model.uavs[-1] = \
-                self.model.uavs[-1], self.model.uavs[(len(self.model.uavs) - 1) // 2]
+            orig_center_index = (len(self.model.uavs) - 1) // 2
+            self.model.uavs[orig_center_index], self.model.uavs[-1] = \
+                self.model.uavs[-1], self.model.uavs[orig_center_index]
             del self.model.uavs[-1]
 
-            self.motion.uavs[(len(self.motion.uavs) - 1) // 2], self.motion.uavs[-1] = \
-                self.motion.uavs[-1], self.motion.uavs[(len(self.motion.uavs) - 1) // 2]
+            self.motion.uavs[orig_center_index], self.motion.uavs[-1] = \
+                self.motion.uavs[-1], self.motion.uavs[orig_center_index]
             self.motion.uavs[-1].visible = False
             del self.motion.uavs[-1]
 
-            if self.all_uav_curves:
-                self.analysis.speed_gc[(len(self.analysis.speed_gc) - 1) // 2], self.analysis.speed_gc[-1] = \
-                    self.analysis.speed_gc[-1], self.analysis.speed_gc[(len(self.analysis.speed_gc) - 1) // 2]
+            if self.analysis.is_all_uav_curves_enabled:
+                self.analysis.all_speed_curve[orig_center_index], self.analysis.all_speed_curve[-1] = \
+                    self.analysis.all_speed_curve[-1], self.analysis.all_speed_curve[orig_center_index]
 
             self.replacing = False
-            self.replacing_state = 0
 
             for button in self.replacement_buttons:
                 button.disabled = False
 
     def update_replacing_strategy2(self):
         if self.replacing_state == 0:  # init state
-            self.orig_center_uav_x = self.model.uavs[len(self.model.uavs) // 2].position.x
-            self.orig_center_uav_y = self.model.uavs[len(self.model.uavs) // 2].position.z
-            self.orig_near_uav_x = self.model.uavs[len(self.model.uavs) // 2 + 1].position.x
-            self.orig_near_uav_y = self.model.uavs[len(self.model.uavs) // 2 + 1].position.z
-            self.replacing_strategy2_circle_x = self.model.uavs[len(self.model.uavs) // 2].position.x + (self.uav_distance / 2)
-            self.replacing_strategy2_circle_y = self.model.uavs[len(self.model.uavs) // 2].position.z
+            while self.sync_lock:
+                pass
+            # create new UAV
+            self.model.uavs.append(
+                Uav(position=vec(self.model.uavs[len(self.model.uavs) // 2 + 1].position.x + self.uav_distance, 0,
+                                 self.model.uavs[len(self.model.uavs) // 2].position.z),
+                    height=self.model.uavs[0].height,
+                    theta=self.model.uavs[0].theta))
+            self.motion.add_uav(self.model.uavs[-1].position, self.model.uavs[-1].height, self.model.uavs[-1].radius)
+            if self.analysis.is_all_uav_curves_enabled:
+                self.analysis.add_speed_gc()
+                self.has_additional_uav_curve = True
+
+            orig_center_index = (len(self.model.uavs) - 1) // 2
+            self.orig_center_uav_x = self.model.uavs[orig_center_index].position.x
+            self.orig_center_uav_y = self.model.uavs[orig_center_index].position.z
+            self.orig_near_uav_x = self.model.uavs[orig_center_index + 1].position.x
+            self.orig_near_uav_y = self.model.uavs[orig_center_index + 1].position.z
+            self.replacing_strategy2_circle_x = self.model.uavs[orig_center_index].position.x + (self.uav_distance / 2)
+            self.replacing_strategy2_circle_y = self.model.uavs[orig_center_index].position.z
             self.update_replacing_strategy2_theta = math.acos(
                 1 - ((self.level_step ** 2) / (2 * ((self.uav_distance / 2) ** 2))))
             self.update_replacing_strategy2_count = 1
             self.replacing_state = 1
 
-        elif self.replacing_state == 1:
-            center_uav = self.model.uavs[len(self.model.uavs) // 2]
-            near_uav = self.model.uavs[len(self.model.uavs) // 2 + 1]
+        elif self.replacing_state == 1:  # swap
+            orig_center_index = (len(self.model.uavs) - 1) // 2
+            center_uav = self.model.uavs[orig_center_index]
+            near_uav = self.model.uavs[orig_center_index + 1]
             circle_r = self.uav_distance / 2
             theta = self.update_replacing_strategy2_theta * self.update_replacing_strategy2_count
             theta = min(math.pi, theta)
             center_uav.position.x = self.replacing_strategy2_circle_x + circle_r * math.cos(theta + math.pi)
-            center_uav.position.z = self.replacing_strategy2_circle_y + circle_r * math.sin(theta + math.pi)
+            center_uav.position.z = self.replacing_strategy2_circle_y + circle_r * math.sin(theta + math.pi) * self.replacing_y_weight
             near_uav.position.x = self.replacing_strategy2_circle_x + circle_r * math.cos(theta)
-            near_uav.position.z = self.replacing_strategy2_circle_y + circle_r * math.sin(theta)
+            near_uav.position.z = self.replacing_strategy2_circle_y + circle_r * math.sin(theta) * self.replacing_y_weight
 
             self.update_replacing_strategy2_count += 1
 
@@ -252,19 +281,69 @@ class UavBs:
                 near_uav.position.z = self.orig_center_uav_y
                 self.replacing_state = 2
 
+        elif self.replacing_state == 2:
+            # swap UAV order
+            orig_center_index = (len(self.model.uavs) - 1) // 2
+            self.model.uavs[orig_center_index], self.model.uavs[orig_center_index + 1] = \
+                self.model.uavs[orig_center_index + 1], self.model.uavs[orig_center_index]
+
+            self.motion.uavs[orig_center_index], self.motion.uavs[orig_center_index + 1] = \
+                self.motion.uavs[orig_center_index + 1], self.motion.uavs[orig_center_index]
+
+            if self.analysis.is_all_uav_curves_enabled:
+                self.analysis.all_speed_curve[orig_center_index], self.analysis.all_speed_curve[orig_center_index + 1] = \
+                    self.analysis.all_speed_curve[orig_center_index + 1], self.analysis.all_speed_curve[orig_center_index]
+
+            # create new UAV & initialize swapping value
+            orig_center_index = (len(self.model.uavs) - 1) // 2 + 1
+            self.orig_center_uav_x = self.model.uavs[orig_center_index].position.x
+            self.orig_center_uav_y = self.model.uavs[orig_center_index].position.z
+            self.orig_near_uav_x = self.model.uavs[-1].position.x
+            self.orig_near_uav_y = self.model.uavs[-1].position.z
+            self.replacing_strategy2_circle_x = self.model.uavs[orig_center_index].position.x + (self.uav_distance / 2)
+            self.replacing_strategy2_circle_y = self.model.uavs[orig_center_index].position.z
+            self.update_replacing_strategy2_theta = math.acos(
+                1 - ((self.level_step ** 2) / (2 * ((self.uav_distance / 2) ** 2))))
+            self.update_replacing_strategy2_count = 1
+            self.replacing_state = 3
+
+        elif self.replacing_state == 3:  # swap with new UAV
+            orig_center_index = (len(self.model.uavs) - 1) // 2 + 1
+            center_uav = self.model.uavs[orig_center_index]
+            near_uav = self.model.uavs[-1]
+            circle_r = self.uav_distance / 2
+            theta = self.update_replacing_strategy2_theta * self.update_replacing_strategy2_count
+            theta = min(math.pi, theta)
+            center_uav.position.x = self.replacing_strategy2_circle_x + circle_r * math.cos(theta + math.pi)
+            center_uav.position.z = self.replacing_strategy2_circle_y + circle_r * math.sin(theta + math.pi) * self.replacing_y_weight
+            near_uav.position.x = self.replacing_strategy2_circle_x + circle_r * math.cos(theta)
+            near_uav.position.z = self.replacing_strategy2_circle_y + circle_r * math.sin(theta) * self.replacing_y_weight
+
+            self.update_replacing_strategy2_count += 1
+
+            if theta == math.pi:
+                center_uav.position.x = self.orig_near_uav_x
+                center_uav.position.z = self.orig_near_uav_y
+                near_uav.position.x = self.orig_center_uav_x
+                near_uav.position.z = self.orig_center_uav_y
+                self.replacing_state = 4
+
         else:  # finalize
-            self.model.uavs[len(self.model.uavs) // 2], self.model.uavs[len(self.model.uavs) // 2 + 1] = \
-                self.model.uavs[len(self.model.uavs) // 2 + 1], self.model.uavs[len(self.model.uavs) // 2]
+            orig_center_index = (len(self.model.uavs) - 1) // 2 + 1
+            self.model.uavs[orig_center_index], self.model.uavs[-1] = \
+                self.model.uavs[-1], self.model.uavs[orig_center_index]
+            del self.model.uavs[-1]
 
-            self.motion.uavs[len(self.model.uavs) // 2], self.motion.uavs[len(self.model.uavs) // 2 + 1] = \
-                self.motion.uavs[len(self.model.uavs) // 2 + 1], self.motion.uavs[len(self.model.uavs) // 2]
+            self.motion.uavs[orig_center_index], self.motion.uavs[-1] = \
+                self.motion.uavs[-1], self.motion.uavs[orig_center_index]
+            self.motion.uavs[-1].visible = False
+            del self.motion.uavs[-1]
 
-            if self.all_uav_curves:
-                self.analysis.speed_gc[len(self.model.uavs) // 2], self.analysis.speed_gc[len(self.model.uavs) // 2 + 1] = \
-                    self.analysis.speed_gc[len(self.model.uavs) // 2 + 1], self.analysis.speed_gc[len(self.model.uavs) // 2]
+            if self.analysis.is_all_uav_curves_enabled:
+                self.analysis.all_speed_curve[orig_center_index], self.analysis.all_speed_curve[-1] = \
+                    self.analysis.all_speed_curve[-1], self.analysis.all_speed_curve[orig_center_index]
 
             self.replacing = False
-            self.replacing_state = 0
 
             for button in self.replacement_buttons:
                 button.disabled = False
@@ -281,7 +360,7 @@ class UavBs:
             uav.radius = uav_model.radius
 
     def update_analysis(self):
-        if not self.replacing:
+        if not self.update_analysis_enabled:
             return
 
         analyze_time = self.time - self.replacing_time_start
@@ -291,18 +370,21 @@ class UavBs:
 
         self.sync_lock = True
         self.analysis.update_cover_map()
-        self.analysis.add_coverage(analyze_time, self.analysis.connected_rate * 100)
+        self.analysis.add_disconnected_rate(analyze_time, round((1 - self.analysis.connected_rate) * 100, 2))
+        self.analysis.add_ground_coverage(analyze_time, round(self.analysis.ground_coverage * 100, 2))
 
         speed_sum = 0
-
         for j in range(len(self.model.uavs)):
             speed = self.analysis.C_(j) / (10 ** 6)
-            if self.all_uav_curves:
-                self.analysis.add_speed(j, analyze_time, round(speed, 3))
+            if self.analysis.is_all_uav_curves_enabled:
+                self.analysis.add_speed(j, analyze_time, round(speed, 1))
             speed_sum += speed
 
-        self.analysis.add_total_speed(analyze_time, round(speed_sum, 3))
+        self.analysis.add_total_speed(analyze_time, round(speed_sum, 1))
         self.sync_lock = False
+
+        if not self.replacing:
+            self.update_analysis_enabled = False
 
     def update(self):
         self.update_replacing()

@@ -4,63 +4,107 @@ import numpy as np
 
 
 class Analysis:
-    def __init__(self, uavs, ues, all_uav_curves, fast):
+    def __init__(self, uavs, ues, ues_backup, is_all_uav_curves_enabled, is_ground_coverage_enabled, fast):
         self.uavs = uavs
         self.ues = ues
-        self.cover_map = np.zeros((len(ues), len(uavs) + 2))
+        self.ues_backup = ues_backup
+        self.is_all_uav_curves_enabled = is_all_uav_curves_enabled
+        self.is_ground_coverage_enabled = is_ground_coverage_enabled
+        self.cover_map = np.zeros((len(ues) if not is_ground_coverage_enabled else len(ues_backup),
+                                   len(uavs) + 2))
         self.connected_rate = 0
+        self.ground_coverage = 0
         self.total_speed_g = graph(title="<i>t</i>-<i>speed</i> plot", align='left',
                                    xtitle="<i>t</i> (s)", ytitle="<i>system-sum-rate</i> (Mbps)", fast=fast)
-        self.total_speed_gc = gcurve(graph=self.total_speed_g, color=color.red)
+        self.total_speed_curve = gcurve(graph=self.total_speed_g, color=color.red)
 
-        if all_uav_curves:
+        if is_all_uav_curves_enabled:
             self.speed_g = graph(title="<i>t</i>-<i>speed</i> plot", align='left',
                                  xtitle="<i>t</i> (s)", ytitle="<i>total speed</i> (Mbps)", fast=fast)
-            self.speed_gc = []
-            colors = [color.blue, color.cyan, color.green, color.orange, color.magenta, color.purple,
-                      color.yellow, color.black, vec(0.8, 0.4, 0.6), color.red] * 5
+            self.all_speed_curve = []
+            colors = [color.blue, color.green, color.orange, color.magenta, color.purple,
+                      color.yellow, color.black, vec(0.2, 0.55, 0.6)] * 5
             for i in range(len(self.uavs)):
-                self.speed_gc.append(gcurve(graph=self.speed_g, color=colors[i]))
+                self.all_speed_curve.append(gcurve(graph=self.speed_g, color=colors[i]))
 
-        coverage_g = graph(title="<i>t</i>-<i>connected</i> plot", align='left',
-                           xtitle="<i>t</i> (s)", ytitle="<i>connected</i> (%)", fast=fast)
-        self.coverage_gc = gcurve(graph=coverage_g, color=color.blue)
+        disconnected_rate_g = graph(title="<i>t</i>-<i>disconnected rate</i> plot", align='left',
+                           xtitle="<i>t</i> (s)", ytitle="<i>disconnected</i> (%)", fast=fast)
+        self.disconnected_rate_curve = gcurve(graph=disconnected_rate_g, color=color.blue)
+
+        if is_ground_coverage_enabled:
+            ground_coverage_g = graph(title="<i>t</i>-<i>coverage</i> plot", align='left',
+                               xtitle="<i>t</i> (s)", ytitle="<i>coverage</i> (%)", fast=fast)
+            self.ground_coverage_curve = gcurve(graph=ground_coverage_g, color=color.orange)
 
     def update_cover_map(self):
         connected_num = 0
-        for i, ue in enumerate(self.ues):
-            self.cover_map[i][-1] = 0
-            for j, uav in enumerate(self.uavs):
-                self.cover_map[i][j] = self.cover(ue, uav)
-                self.cover_map[i][-1] = self.cover_map[i][-1] or self.cover_map[i][j]
-            if self.cover_map[i][-1]:
-                connected_num += 1
-        self.connected_rate = connected_num / len(self.ues)
+        if self.is_ground_coverage_enabled:
+            theoretical_connected_num = 0
+            for i, ue in enumerate(self.ues_backup):
+                self.cover_map[i][-1] = 0
+                for j, uav in enumerate(self.uavs):
+                    self.cover_map[i][j] = self.cover(ue, uav)
+                    self.cover_map[i][-1] = self.cover_map[i][-1] or self.cover_map[i][j]
+                if self.cover_map[i][-1]:
+                    theoretical_connected_num += 1
+                    if i < len(self.ues):
+                        connected_num += 1
+
+            self.connected_rate = connected_num / len(self.ues)
+            self.ground_coverage = theoretical_connected_num / len(self.ues_backup)
+
+        else:
+            for i, ue in enumerate(self.ues):
+                self.cover_map[i][-1] = 0
+                for j, uav in enumerate(self.uavs):
+                    self.cover_map[i][j] = self.cover(ue, uav)
+                    self.cover_map[i][-1] = self.cover_map[i][-1] or self.cover_map[i][j]
+                if self.cover_map[i][-1]:
+                    connected_num += 1
+            self.connected_rate = connected_num / len(self.ues)
 
     def is_connected(self, i):
         return self.cover_map[i][-1]
 
-    def clear_curves(self):
-        self.coverage_gc.data = []
-        self.total_speed_gc.data = []
-        for curve in self.speed_gc:
-            curve.data = []
+    def avg_disconnected_rate(self):
+        r_sum = 0
+        for t, r in self.disconnected_rate_curve.data:
+            r_sum += r
+        return r_sum / len(self.disconnected_rate_curve.data)
 
-    def add_coverage(self, x, y):
-        self.coverage_gc.plot(pos=(x, y))
+    def avg_speed(self):
+        s_sum = 0
+        for t, s in self.total_speed_curve.data:
+            s_sum += s
+        return s_sum / len(self.total_speed_curve.data)
+
+    def clear_data(self):
+        self.disconnected_rate_curve.data = []
+        if self.is_ground_coverage_enabled:
+            self.ground_coverage_curve.data = []
+        self.total_speed_curve.data = []
+        if self.is_all_uav_curves_enabled:
+            for curve in self.all_speed_curve:
+                curve.data = []
+
+    def add_disconnected_rate(self, x, y):
+        self.disconnected_rate_curve.plot(pos=(x, y))
+
+    def add_ground_coverage(self, x, y):
+        self.ground_coverage_curve.plot(pos=(x, y))
 
     def add_total_speed(self, x, y):
-        self.total_speed_gc.plot(pos=(x, y))
+        self.total_speed_curve.plot(pos=(x, y))
 
     def add_speed(self, i, x, y):
-        self.speed_gc[i].plot(pos=(x, y))
+        self.all_speed_curve[i].plot(pos=(x, y))
 
     def add_speed_gc(self):
-        self.speed_gc.append(gcurve(graph=self.speed_g, color=color.red))
+        self.all_speed_curve.append(gcurve(graph=self.speed_g, color=color.red))
 
     def del_speed_gc(self):
-        self.speed_gc[-1].data = []
-        del self.speed_gc[-1]
+        self.all_speed_curve[-1].data = []
+        del self.all_speed_curve[-1]
 
     def h_(self, j):
         return self.uavs[j].height
@@ -76,30 +120,30 @@ class Analysis:
         e = self.ues[i]
         return np.linalg.norm((u.x - e.x, u.z - e.z, self.h_(j)))
 
-    # def L(self, h, r):
-    #     a = 12.08
-    #     b = 0.11
-    #     fc = 2 * (10 ** 9)
-    #     c = 3 * (10 ** 8)
-    #     eta_los = 1.6
-    #     eta_nlos = 23
-    #
-    #     theta = math.atan(h / r)
-    #
-    #     l_part1 = (eta_los - eta_nlos) / (1 + a * math.exp(-b * (180 / math.pi * theta - a)))
-    #     l_part2 = 20 * math.log(r * (1 / math.cos(theta)), 10)
-    #     l_part3 = 20 * math.log(4 * math.pi * fc / c, 10)
-    #     return l_part1 + l_part2 + l_part3 + eta_nlos
+    def L(self, h, r, d):
+        a = 12.08
+        b = 0.11
+        fc = 2 * (10 ** 9)
+        c = 3 * (10 ** 8)
+        eta_los = 1.6
+        eta_nlos = 23
 
-    def orig_L(self, h, r, d):
-        p_los = self.P_los(h, r, d)
-        l_los = self.L_los(d)
-        p_nlos = 1 - p_los
-        l_nlos = self.L_nlos(d)
-        l = p_los * l_los + p_nlos * l_nlos
-        # print(l, p_los, l_los, p_nlos, l_nlos)
-        # print(l - self.L(self, h, r))
-        return l
+        theta = math.atan(h / r)
+
+        l_part1 = (eta_los - eta_nlos) / (1 + a * math.exp(-b * (180 / math.pi * theta - a)))
+        l_part2 = 20 * math.log(r * (1 / math.cos(theta)), 10)
+        l_part3 = 20 * math.log(4 * math.pi * fc / c, 10)
+        return l_part1 + l_part2 + l_part3 + eta_nlos
+
+    # def orig_L(self, h, r, d):
+    #     p_los = self.P_los(h, r, d)
+    #     l_los = self.L_los(d)
+    #     p_nlos = 1 - p_los
+    #     l_nlos = self.L_nlos(d)
+    #     l = p_los * l_los + p_nlos * l_nlos
+    #     # print(l, p_los, l_los, p_nlos, l_nlos)
+    #     # print(l - self.L(self, h, r))
+    #     return l
 
     def P_los(self, h, r, d):
         a = 12.08
@@ -122,7 +166,7 @@ class Analysis:
         P = 100
         B = 2 * (10 ** 7)
         N0 = 4.1843795 * (10 ** -21)
-        rtn = P * (10 ** (-self.orig_L(self.h_(j), self.r_(i, j), self.d_(i, j)) / 10)) / (self.I_(i, j) + B * N0)
+        rtn = P * (10 ** (-self.L(self.h_(j), self.r_(i, j), self.d_(i, j)) / 10)) / (self.I_(i, j) + B * N0)
         # print('SINR', rtn)
         return rtn
 
@@ -131,7 +175,7 @@ class Analysis:
         accu = 0
         for jp in range(len(self.uavs)):
             if jp != j:
-                accu += P * (10 ** (-self.orig_L(self.h_(jp), self.r_(i, jp), self.d_(i, jp)) / 10)) * self.phi_(i, j, jp)
+                accu += P * (10 ** (-self.L(self.h_(jp), self.r_(i, jp), self.d_(i, jp)) / 10)) * self.phi_(i, j, jp)
         return accu
 
     def phi_(self, i, j, jp):
@@ -156,5 +200,4 @@ class Analysis:
                 _c = self.c_(i, j)
                 c_acc += _c
                 # print(f'UE ({self.ues[i].x}, {self.ues[i].z}), UAV({self.uavs[j].position.x}, {self.uavs[j].position.z}, h={self.uavs[j].height}, r={self.uavs[j].radius}), speed = {_c}')
-
         return c_acc

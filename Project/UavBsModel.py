@@ -60,7 +60,7 @@ class UavBsModel:
         yy0 = self.center.z  # centre of disk
 
         # Simulate Poisson point process
-        point_num = 3000  # Poisson number of points
+        point_num = 4000  # Poisson number of points
         theta = 2 * np.pi * np.random.uniform(0, 1, point_num)  # angular coordinates
         rho = r * np.sqrt(np.random.uniform(0, 1, point_num))  # radial coordinates
 
@@ -75,7 +75,7 @@ class UavBsModel:
         for ue_x, ue_y in zip(ue_xx, ue_yy):
             if in_hexagon(self.center, (ue_x, ue_y), hexagon_length):
                 self.ues_backup.append(vec(ue_x, 0, ue_y))
-                if len(self.ues_backup) == 2000:
+                if len(self.ues_backup) == 3000:
                     break
 
         self.ues = copy.deepcopy(self.ues_backup)
