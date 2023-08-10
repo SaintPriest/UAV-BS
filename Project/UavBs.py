@@ -30,6 +30,7 @@ class UavBs:
         self.level_step = 10 * uav_speed_up / sys_config_update_rate  # m/s
         self.raise_step = 5 * uav_speed_up / sys_config_update_rate
         self.fall_step = 3 * uav_speed_up / sys_config_update_rate
+        max_data_rate = 150 * (10 ** 6)
 
         # states
         self.replacing = False
@@ -76,7 +77,7 @@ class UavBs:
         self.model = UavBsModel(hexagon_length, uavs)
 
         # analysis
-        self.analysis = Analysis(self.model.uavs, self.model.ues, self.model.ues_backup,
+        self.analysis = Analysis(self.model.uavs, self.model.ues, self.model.ues_backup, max_data_rate,
                                  is_all_uav_curves_enabled, is_ground_coverage_enabled,
                                  fast_analyze)
 

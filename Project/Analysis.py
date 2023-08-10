@@ -5,10 +5,11 @@ import numpy as np
 
 
 class Analysis:
-    def __init__(self, uavs, ues, ues_backup, is_all_uav_speed_curves_enabled, is_ground_coverage_enabled, fast):
+    def __init__(self, uavs, ues, ues_backup, max_data_rate, is_all_uav_speed_curves_enabled, is_ground_coverage_enabled, fast):
         self.uavs = uavs
         self.ues = ues
         self.ues_backup = ues_backup
+        self.max_data_rate = max_data_rate
         self.is_all_uav_speed_curves_enabled = is_all_uav_speed_curves_enabled
         self.is_ground_coverage_enabled = is_ground_coverage_enabled
         self.cover_map = np.zeros((len(ues) if not is_ground_coverage_enabled else len(ues_backup),
@@ -203,7 +204,7 @@ class Analysis:
 
     def c_(self, i, j):
         B = 2 * (10 ** 7)
-        return B * math.log(1 + self.SINR_(i, j), 2)
+        return min(self.max_data_rate, B * math.log(1 + self.SINR_(i, j), 2))
 
     def C_(self, j):
         c_acc = 0
@@ -212,7 +213,7 @@ class Analysis:
                 _c = self.c_(i, j)
                 c_acc += _c
                 # print(f'UE ({self.ues[i].x}, {self.ues[i].z}), UAV({self.uavs[j].position.x}, {self.uavs[j].position.z}, h={self.uavs[j].height}, r={self.uavs[j].radius}), speed = {_c}')
-        return c_acc
+        return min(self.max_data_rate, c_acc)
 
     def copy_all_curves(self):
         self.total_speed_curve_data_copy = copy.deepcopy(self.total_speed_curve.data)
