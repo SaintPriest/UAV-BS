@@ -26,7 +26,7 @@ class UavBs:
         uav_height = 100
         uav_theta = math.atan(1)
         ue_init_num = 300
-        uav_speed_up = 5  # speed up of UAV
+        uav_speed_up = 1  # speed up of UAV
         self.level_step = 10 * uav_speed_up / sys_config_update_rate  # m/s
         self.raise_step = 5 * uav_speed_up / sys_config_update_rate
         self.fall_step = 3 * uav_speed_up / sys_config_update_rate
