@@ -1,40 +1,46 @@
-from vpython import graph, gcurve, color, vector as vec, canvas
+import copy
+from vpython import graph, gcurve, color, vector as vec
 import math
 import numpy as np
 
 
 class Analysis:
-    def __init__(self, uavs, ues, ues_backup, is_all_uav_curves_enabled, is_ground_coverage_enabled, fast):
+    def __init__(self, uavs, ues, ues_backup, is_all_uav_speed_curves_enabled, is_ground_coverage_enabled, fast):
         self.uavs = uavs
         self.ues = ues
         self.ues_backup = ues_backup
-        self.is_all_uav_curves_enabled = is_all_uav_curves_enabled
+        self.is_all_uav_speed_curves_enabled = is_all_uav_speed_curves_enabled
         self.is_ground_coverage_enabled = is_ground_coverage_enabled
         self.cover_map = np.zeros((len(ues) if not is_ground_coverage_enabled else len(ues_backup),
                                    len(uavs) + 2))
         self.connected_rate = 0
         self.ground_coverage = 0
-        self.total_speed_g = graph(title="<i>t</i>-<i>speed</i> plot", align='left',
+        self.total_speed_g = graph(title="<i>t</i> - <i>system sum rate</i> plot", align='left',
                                    xtitle="<i>t</i> (s)", ytitle="<i>system-sum-rate</i> (Mbps)", fast=fast)
         self.total_speed_curve = gcurve(graph=self.total_speed_g, color=color.red)
 
-        if is_all_uav_curves_enabled:
-            self.speed_g = graph(title="<i>t</i>-<i>speed</i> plot", align='left',
-                                 xtitle="<i>t</i> (s)", ytitle="<i>total speed</i> (Mbps)", fast=fast)
+        if self.is_all_uav_speed_curves_enabled:
+            self.speed_g = graph(title="<i>t</i> - <i>system rate</i> plot", align='left',
+                                 xtitle="<i>t</i> (s)", ytitle="<i>rate</i> (Mbps)", fast=fast)
             self.all_speed_curve = []
             colors = [color.blue, color.green, color.orange, color.magenta, color.purple,
                       color.yellow, color.black, vec(0.2, 0.55, 0.6)] * 5
             for i in range(len(self.uavs)):
                 self.all_speed_curve.append(gcurve(graph=self.speed_g, color=colors[i]))
 
-        disconnected_rate_g = graph(title="<i>t</i>-<i>disconnected rate</i> plot", align='left',
-                           xtitle="<i>t</i> (s)", ytitle="<i>disconnected</i> (%)", fast=fast)
+        disconnected_rate_g = graph(title="<i>t</i> - <i>outage rate</i> plot", align='left',
+                           xtitle="<i>t</i> (s)", ytitle="<i>outage rate</i> (%)", fast=fast)
         self.disconnected_rate_curve = gcurve(graph=disconnected_rate_g, color=color.blue)
 
-        if is_ground_coverage_enabled:
-            ground_coverage_g = graph(title="<i>t</i>-<i>coverage</i> plot", align='left',
+        if self.is_ground_coverage_enabled:
+            ground_coverage_g = graph(title="<i>t</i> - <i>coverage</i> plot", align='left',
                                xtitle="<i>t</i> (s)", ytitle="<i>coverage</i> (%)", fast=fast)
             self.ground_coverage_curve = gcurve(graph=ground_coverage_g, color=color.orange)
+
+        self.total_speed_curve_data_copy = []
+        self.all_speed_curve_data_array_copy = []
+        self.disconnected_rate_curve_data_copy = []
+        self.ground_coverage_curve_data_copy = []
 
     def update_cover_map(self):
         connected_num = 0
@@ -66,6 +72,12 @@ class Analysis:
     def is_connected(self, i):
         return self.cover_map[i][-1]
 
+    def avg_coverage(self):
+        c_sum = 0
+        for t, c in self.ground_coverage_curve.data:
+            c_sum += c
+        return c_sum / len(self.disconnected_rate_curve.data)
+
     def avg_disconnected_rate(self):
         r_sum = 0
         for t, r in self.disconnected_rate_curve.data:
@@ -83,7 +95,7 @@ class Analysis:
         if self.is_ground_coverage_enabled:
             self.ground_coverage_curve.data = []
         self.total_speed_curve.data = []
-        if self.is_all_uav_curves_enabled:
+        if self.is_all_uav_speed_curves_enabled:
             for curve in self.all_speed_curve:
                 curve.data = []
 
@@ -201,3 +213,16 @@ class Analysis:
                 c_acc += _c
                 # print(f'UE ({self.ues[i].x}, {self.ues[i].z}), UAV({self.uavs[j].position.x}, {self.uavs[j].position.z}, h={self.uavs[j].height}, r={self.uavs[j].radius}), speed = {_c}')
         return c_acc
+
+    def copy_all_curves(self):
+        self.total_speed_curve_data_copy = copy.deepcopy(self.total_speed_curve.data)
+
+        if self.is_all_uav_speed_curves_enabled:
+            self.all_speed_curve_data_array_copy = []
+            for data in map(lambda x: x.data, self.all_speed_curve):
+                self.all_speed_curve_data_array_copy.append(copy.deepcopy(data))
+
+        self.disconnected_rate_curve_data_copy = copy.deepcopy(self.disconnected_rate_curve.data)
+
+        if self.is_ground_coverage_enabled:
+            self.ground_coverage_curve_data_copy = copy.deepcopy(self.ground_coverage_curve.data)
