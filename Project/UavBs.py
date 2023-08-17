@@ -26,7 +26,7 @@ class UavBs:
         uav_height = 100
         uav_theta = math.atan(1)
         ue_init_num = 300
-        uav_speed_up = 1  # speed up of UAV
+        uav_speed_up = 5  # speed up of UAV
         self.level_step = 10 * uav_speed_up / sys_config_update_rate  # m/s
         self.raise_step = 5 * uav_speed_up / sys_config_update_rate
         self.fall_step = 3 * uav_speed_up / sys_config_update_rate
@@ -37,8 +37,7 @@ class UavBs:
         self.reproducing = False
         self.update_replacing_strategy = None  # function ptr
         self.replacing_state = 0
-        self.REPLACING_STATE_WAIT_LAST_ANALYSIS = 254 #### change to self.wait_analysis = True
-        self.REPLACING_STATE_FINALIZE = 255
+        self.wait_analysis_update = False
         analyze_update_rate = 5  # figures updates 5 times per second. It should be a factor of sys_config_update_rate
         self.analyze_update_period = sys_config_update_rate // analyze_update_rate
         fast_analyze = False  # Turn it off if you need analysis data
@@ -140,6 +139,12 @@ class UavBs:
 
         self.replacement_buttons.append(button(bind=start_replacing_strategy2, text='Replace 2'))
 
+        def start_replacing_strategy3():
+            self.update_replacing_strategy = self.update_replacing_strategy3
+            self.replacing = True
+
+        self.replacement_buttons.append(button(bind=start_replacing_strategy3, text='Replace 3'))
+
         def start_reproduce_replacement():
             # copy
             self.analysis.copy_all_curves()
@@ -158,7 +163,13 @@ class UavBs:
                 data_list.append([time, speed_sum, coverage, outage])
 
             # output
-            with open('data.csv', mode='w', newline='') as file:
+            if self.update_replacing_strategy == self.update_replacing_strategy1:
+                strategy_num = 1
+            elif self.update_replacing_strategy == self.update_replacing_strategy2:
+                strategy_num = 2
+            else:
+                strategy_num = 3
+            with open(f'replace {strategy_num} data.csv', mode='w', newline='') as file:
                 writer = csv.writer(file)
                 writer.writerow(["Time", "System sum rate (Mbps)", "Coverage (%)", "Outage rate (%)"])
                 for data in data_list:
@@ -245,9 +256,14 @@ class UavBs:
             old_uav = self.model.uavs[(len(self.model.uavs) - 1) // 2]
             old_uav.position.x += min(self.level_step, target_x - old_uav.position.x)
             if isclose(old_uav.position.x, target_x):
-                self.replacing_state = self.REPLACING_STATE_WAIT_LAST_ANALYSIS
+                self.replacing_state = 4
+                self.wait_analysis_update = True
 
-        elif self.replacing_state == self.REPLACING_STATE_FINALIZE:  # finalize
+        elif self.replacing_state == 4:
+            if not self.wait_analysis_update:
+                self.replacing_state = 5
+
+        elif self.replacing_state == 5:  # finalize
             orig_center_index = (len(self.model.uavs) - 1) // 2
             self.model.uavs[orig_center_index], self.model.uavs[-1] = \
                 self.model.uavs[-1], self.model.uavs[orig_center_index]
@@ -345,9 +361,14 @@ class UavBs:
                 center_uav.position.z = self.orig_near_uav_y
                 near_uav.position.x = self.orig_center_uav_x
                 near_uav.position.z = self.orig_center_uav_y
-                self.replacing_state = self.REPLACING_STATE_WAIT_LAST_ANALYSIS
+                self.replacing_state = 4
+                self.wait_analysis_update = True
 
-        elif self.replacing_state == self.REPLACING_STATE_FINALIZE:  # finalize
+        elif self.replacing_state == 4:
+            if not self.wait_analysis_update:
+                self.replacing_state = 5
+
+        elif self.replacing_state == 5:  # finalize
             orig_center_index = (len(self.model.uavs) - 1) // 2
             near_index = orig_center_index + 1
             self.model.uavs[orig_center_index], self.model.uavs[near_index] = \
@@ -361,6 +382,82 @@ class UavBs:
                 self.model.uavs[near_index], self.model.uavs[orig_center_index]
             self.motion.uavs[orig_center_index], self.motion.uavs[near_index] = \
                 self.motion.uavs[near_index], self.motion.uavs[orig_center_index]
+
+            del self.model.uavs[-1]
+            self.motion.uavs[-1].visible = False
+            del self.motion.uavs[-1]
+
+            self.replacing = False
+
+            for button in self.replacement_buttons:
+                button.disabled = False
+
+    def update_replacing_strategy3(self):
+        if self.replacing_state == 0:  # init state
+            while self.sync_lock:
+                pass
+            self.model.uavs.append(
+                Uav(position=vec(self.model.uavs[len(self.model.uavs) // 2 + 1].position.x + self.uav_distance * 0.85, 0,
+                                 self.model.uavs[len(self.model.uavs) // 2].position.z),
+                    height=self.model.uavs[0].height - 20,
+                    theta=self.model.uavs[0].theta))
+            self.motion.add_uav(self.model.uavs[-1].position, self.model.uavs[-1].height, self.model.uavs[-1].radius)
+
+            # close the new uav
+            self.model.uavs[-1].opened = False
+            self.motion.close_uav(-1)
+
+            self.has_additional_uav = True
+            if self.analysis.is_all_uav_speed_curves_enabled:
+                self.analysis.add_speed_gc()
+            self.replacing_state = 1
+
+        elif self.replacing_state == 1:  # moving state
+            target_uav = self.model.uavs[(len(self.model.uavs) - 1) // 2]
+            new_uav = self.model.uavs[-1]
+            new_uav.position.x -= min(self.level_step, new_uav.position.x - target_uav.position.x)
+            if isclose(new_uav.position.x, target_uav.position.x):
+                # open the new uav
+                self.model.uavs[-1].opened = True
+                self.motion.open_uav(-1)
+
+                self.replacing_state = 2
+
+        elif self.replacing_state == 2:  # swapping state
+            target_uav = self.model.uavs[(len(self.model.uavs) - 1) // 2]
+            target_height = self.model.uavs[0].height
+            new_uav = self.model.uavs[-1]
+            dy = min(self.raise_step, target_height - new_uav.height)
+            new_uav.height += dy
+            new_uav.update_radius()
+            target_uav.height += dy
+            target_uav.update_radius()
+            self.update_height()
+            if isclose(new_uav.height, target_height):
+                # close the old uav
+                target_uav.opened = False
+                self.motion.close_uav((len(self.model.uavs) - 1) // 2)
+                self.replacing_state = 3
+
+        elif self.replacing_state == 3:
+            target_x = self.model.uavs[(len(self.model.uavs) - 1) // 2 + 1].position.x + self.uav_distance * 1.05
+            old_uav = self.model.uavs[(len(self.model.uavs) - 1) // 2]
+            old_uav.position.x += min(self.level_step, target_x - old_uav.position.x)
+            if isclose(old_uav.position.x, target_x):
+                self.replacing_state = 4
+                self.wait_analysis_update = True
+
+        elif self.replacing_state == 4:
+            if not self.wait_analysis_update:
+                self.replacing_state = 5
+
+        elif self.replacing_state == 5:  # finalize
+            orig_center_index = (len(self.model.uavs) - 1) // 2
+            self.model.uavs[orig_center_index], self.model.uavs[-1] = \
+                self.model.uavs[-1], self.model.uavs[orig_center_index]
+
+            self.motion.uavs[orig_center_index], self.motion.uavs[-1] = \
+                self.motion.uavs[-1], self.motion.uavs[orig_center_index]
 
             del self.model.uavs[-1]
             self.motion.uavs[-1].visible = False
@@ -424,8 +521,7 @@ class UavBs:
             self.analysis.add_total_speed(analyze_time, self.analysis.total_speed_curve_data_copy[index][1])
 
         self.sync_lock = False
-        if self.replacing_state == self.REPLACING_STATE_WAIT_LAST_ANALYSIS:
-            self.replacing_state = self.REPLACING_STATE_FINALIZE
+        self.wait_analysis_update = False
 
     def update(self):
         self.update_replacing()

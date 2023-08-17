@@ -95,6 +95,7 @@ class Uav:
         self.theta = theta
         self.radius = 0
         self.update_radius()
+        self.opened = True
 
     def update_radius(self):
         self.radius = self.height * (1 / math.tan(self.theta))

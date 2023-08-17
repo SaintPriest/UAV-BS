@@ -50,7 +50,7 @@ class Analysis:
             for i, ue in enumerate(self.ues_backup):
                 self.cover_map[i][-1] = 0
                 for j, uav in enumerate(self.uavs):
-                    self.cover_map[i][j] = self.cover(ue, uav)
+                    self.cover_map[i][j] = uav.opened and self.cover(ue, uav)
                     self.cover_map[i][-1] = self.cover_map[i][-1] or self.cover_map[i][j]
                 if self.cover_map[i][-1]:
                     theoretical_connected_num += 1
@@ -64,7 +64,7 @@ class Analysis:
             for i, ue in enumerate(self.ues):
                 self.cover_map[i][-1] = 0
                 for j, uav in enumerate(self.uavs):
-                    self.cover_map[i][j] = self.cover(ue, uav)
+                    self.cover_map[i][j] = uav.opened and self.cover(ue, uav)
                     self.cover_map[i][-1] = self.cover_map[i][-1] or self.cover_map[i][j]
                 if self.cover_map[i][-1]:
                     connected_num += 1
@@ -207,6 +207,8 @@ class Analysis:
         return min(self.max_data_rate, B * math.log(1 + self.SINR_(i, j), 2))
 
     def C_(self, j):
+        if not self.uavs[j].opened:
+            return 0
         c_acc = 0
         for i in range(len(self.ues)):
             if self.cover_(i, j):

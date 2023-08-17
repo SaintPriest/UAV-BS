@@ -20,7 +20,7 @@ class Motion:
 
     def add_uav(self, position, height, radius):
         self.uavs.append(cone(canvas=self.scene, pos=position, axis=vec(0, height, 0),
-                              radius=radius, opacity=0.4))
+                              radius=radius, opacity=0.5))
 
     def add_ue(self, position):
         self.ues.append(cylinder(canvas=self.scene, pos=position, axis=vec(0, 0.5, 0), opacity=0.7, color=color.black,
@@ -34,6 +34,12 @@ class Motion:
             self.ues[i].visible = True
         self.ue_num = num
 
+    def open_uav(self, j):
+        self.uavs[j].color = color.white
+
+    def close_uav(self, j):
+        self.uavs[j].color = color.gray(0.4)
+
 
 if __name__ == '__main__':
-    motion = Motion(600, 200)
+    motion = Motion(600)
