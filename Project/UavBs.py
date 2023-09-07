@@ -469,10 +469,16 @@ class UavBs:
                 button.disabled = False
 
     def update_pos(self):
-        for uav, uav_model in zip(self.motion.uavs, self.model.uavs):
+        for uav_model, uav, uav_head, uav_head2 in zip(self.model.uavs, self.motion.uavs, self.motion.uav_heads, self.motion.uav_heads2):
             uav.pos = vec(uav_model.position.x - self.model.center.x,
                           uav_model.position.y,
                           uav_model.position.z - self.model.center.z)
+            uav_head.pos = vec(uav_model.position.x - self.model.center.x,
+                          uav_model.position.y + uav_model.height,
+                          uav_model.position.z - self.model.center.z)
+            uav_head2.pos = vec(uav_model.position.x - self.model.center.x,
+                               uav_model.position.y + uav_model.height,
+                               uav_model.position.z - self.model.center.z)
 
     def update_height(self):
         for uav, uav_model in zip(self.motion.uavs, self.model.uavs):

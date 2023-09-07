@@ -15,12 +15,18 @@ class Motion:
         self.ground2 = extrusion(canvas=self.scene, path=[vec(0, 0, 0), vec(0, -1, 0)],
                                  shape=shapes.hexagon(length=400/math.sqrt(3), rotate=math.pi/6), color=color.white)
         self.uavs = []
+        self.uav_heads = []
+        self.uav_heads2 = []
         self.ues = []
         self.ue_num = 0
 
     def add_uav(self, position, height, radius):
         self.uavs.append(cone(canvas=self.scene, pos=position, axis=vec(0, height, 0),
                               radius=radius, opacity=0.5))
+        self.uav_heads.append(ellipsoid(canvas=self.scene, pos=vec(position.x, position.y + height, position.z),
+                                  length=16, height=12, width=16, color=vec(0.47, 0.76, 0.97), opacity=0.8))
+        self.uav_heads2.append(ring(canvas=self.scene, pos=vec(position.x, position.y + height, position.z),
+                                  radius=8, thickness=0.8, axis=vec(0, 1, 0), opacity=0.6))
 
     def add_ue(self, position):
         self.ues.append(cylinder(canvas=self.scene, pos=position, axis=vec(0, 0.5, 0), opacity=0.7, color=color.black,
