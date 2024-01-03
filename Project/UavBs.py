@@ -26,7 +26,7 @@ class UavBs:
         uav_height = 100
         uav_theta = math.atan(1)
         ue_init_num = 300
-        uav_speed_up = 1  # speed up of UAV
+        uav_speed_up = 5  # speed up of UAV 5
         self.level_step = 10 * uav_speed_up / sys_config_update_rate  # m/s
         self.raise_step = 5 * uav_speed_up / sys_config_update_rate
         self.fall_step = 3 * uav_speed_up / sys_config_update_rate
@@ -213,7 +213,8 @@ class UavBs:
             self.reproducing = False
             self.replacing_time_text.text = f'{(self.time - self.replacing_time_start) / sys_config_update_rate} s'
             self.replacing_time_text.text += f'  |  Avg system sum rate: <b>{round(self.analysis.avg_speed(), 1)} Mbps</b>'
-            self.replacing_time_text.text += f'  |  Avg coverage: <b>{round(self.analysis.avg_coverage(), 2)} %</b>'
+            if self.analysis.is_ground_coverage_enabled:
+                self.replacing_time_text.text += f'  |  Avg coverage: <b>{round(self.analysis.avg_coverage(), 2)} %</b>'
             self.replacing_time_text.text += f'  |  Avg outage rate: <b>{round(self.analysis.avg_disconnected_rate(), 2)} %</b>'
 
     def update_replacing_strategy1(self):
